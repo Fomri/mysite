@@ -311,7 +311,8 @@
             allowance: s.count || 1,
             smokedCount: 0,
             sacrificedCount: 0,
-            events: [] // { type: 'scheduled'|'sacrificed', timestamp, note }
+            skippedCount: 0,
+            events: [] // { type: 'scheduled'|'sacrificed'|'skipped', timestamp, note }
           })),
           extraLogs: [] // { id, type: 'swapped'|'unexpected', timestamp, reason, sacrificedSlotId, sacrificedSlotLabel }
         };
@@ -325,7 +326,8 @@
             const existing = existingMap.get(t.id);
             existing.time = t.time;
             existing.label = t.label;
-            existing.allowance = Math.max(t.count || 1, existing.smokedCount + existing.sacrificedCount);
+            existing.skippedCount = existing.skippedCount || 0;
+            existing.allowance = Math.max(t.count || 1, existing.smokedCount + existing.sacrificedCount + existing.skippedCount);
             return existing;
           }
           return {
@@ -335,6 +337,7 @@
             allowance: t.count || 1,
             smokedCount: 0,
             sacrificedCount: 0,
+            skippedCount: 0,
             events: []
           };
         });
@@ -344,15 +347,17 @@
     }
 
     function getDayMetrics(log) {
-      if (!log) return { planned: 0, smoked: 0, sacrificed: 0, unexpected: 0, swapped: 0 };
+      if (!log) return { planned: 0, smoked: 0, sacrificed: 0, skipped: 0, unexpected: 0, swapped: 0 };
       let planned = 0;
       let scheduledSmoked = 0;
       let sacrificed = 0;
+      let skipped = 0;
 
       log.slots.forEach(s => {
         planned += s.allowance;
         scheduledSmoked += s.smokedCount;
         sacrificed += s.sacrificedCount;
+        skipped += (s.skippedCount || 0);
       });
 
       let swapped = 0;
@@ -363,7 +368,7 @@
       });
 
       const totalSmoked = scheduledSmoked + swapped + unexpected;
-      return { planned, totalSmoked, scheduledSmoked, sacrificed, swapped, unexpected };
+      return { planned, totalSmoked, scheduledSmoked, sacrificed, skipped, swapped, unexpected };
     }
 
     /*************************************************************************
@@ -448,10 +453,13 @@
       const m = getDayMetrics(log);
 
       const effectiveLimit = m.planned + m.unexpected;
-      const pct = effectiveLimit > 0 ? Math.min(100, Math.round((m.totalSmoked / effectiveLimit) * 100)) : 0;
       const radius = 52;
       const circumference = 2 * Math.PI * radius;
-      const strokeDashoffset = circumference - (pct / 100) * circumference;
+      // Smoked fills the ring from the top (amber); skipped cigarettes fill the next part in green
+      const smokedFrac = effectiveLimit > 0 ? Math.min(1, m.totalSmoked / effectiveLimit) : 0;
+      const skippedFrac = effectiveLimit > 0 ? Math.max(0, Math.min(1 - smokedFrac, m.skipped / effectiveLimit)) : 0;
+      const smokedLen = smokedFrac * circumference;
+      const skippedLen = skippedFrac * circumference;
 
       const ringColor = m.totalSmoked > effectiveLimit
         ? '#f43f5e'
@@ -472,11 +480,13 @@
         `;
       } else {
         slotsHtml = log.slots.map(slot => {
-          const used = slot.smokedCount + slot.sacrificedCount;
+          const skipped = slot.skippedCount || 0;
+          const used = slot.smokedCount + slot.sacrificedCount + skipped;
           const remaining = slot.allowance - used;
-          const isCompleted = remaining === 0 && slot.smokedCount > 0 && slot.sacrificedCount === 0;
+          const isCompleted = remaining === 0 && slot.smokedCount > 0 && slot.sacrificedCount === 0 && skipped === 0;
           const isFullySacrificed = remaining === 0 && slot.sacrificedCount === slot.allowance;
-          const isMixedDone = remaining === 0 && !isCompleted && !isFullySacrificed;
+          const isFullySkipped = remaining === 0 && skipped === slot.allowance;
+          const isMixedDone = remaining === 0 && !isCompleted && !isFullySacrificed && !isFullySkipped;
           const isAvailableNow = slot.time <= nowTime && remaining > 0;
 
           let cardStyle = 'bg-ios-card border-ios-border';
@@ -498,9 +508,22 @@
             actionHtml = `
               <span class="text-[11px] text-zinc-500 italic pr-1">Used earlier</span>
             `;
+          } else if (isFullySkipped) {
+            cardStyle = 'bg-ios-card/60 border-emerald-500/25';
+            const skipTime = slot.events.filter(e => e.type === 'skipped').pop()?.timestamp || '';
+            badgeHtml = `<span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400">✓ Skipped ${skipTime ? 'at ' + skipTime : ''}</span>`;
+            actionHtml = `
+              <button onclick="undoSlotAction('${slot.slotId}')" class="px-3 py-2 rounded-xl bg-ios-elevated border border-ios-border text-zinc-400 text-xs font-medium active:scale-95 transition">
+                Undo
+              </button>
+            `;
           } else if (isMixedDone) {
             cardStyle = 'bg-ios-card/60 border-zinc-700';
-            badgeHtml = `<span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-zinc-700/60 text-zinc-300">${slot.smokedCount} Smoked · ${slot.sacrificedCount} Forfeited</span>`;
+            const parts = [];
+            if (slot.smokedCount) parts.push(`${slot.smokedCount} Smoked`);
+            if (skipped) parts.push(`${skipped} Skipped`);
+            if (slot.sacrificedCount) parts.push(`${slot.sacrificedCount} Forfeited`);
+            badgeHtml = `<span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-zinc-700/60 text-zinc-300">${parts.join(' · ')}</span>`;
             actionHtml = `
               <button onclick="undoSlotAction('${slot.slotId}')" class="px-3 py-2 rounded-xl bg-ios-elevated border border-ios-border text-zinc-400 text-xs font-medium active:scale-95 transition">
                 Undo
@@ -518,13 +541,19 @@
             const countSub = slot.allowance > 1 ? `<span class="text-[11px] text-zinc-400 ml-1">(${remaining}/${slot.allowance} left)</span>` : '';
 
             actionHtml = `
-              <div class="flex items-center gap-1.5">
-                ${used > 0 ? `<button onclick="undoSlotAction('${slot.slotId}')" class="p-2 rounded-xl bg-ios-elevated border border-ios-border text-zinc-400 text-xs active:scale-95">↩</button>` : ''}
+              <div class="flex flex-wrap items-center justify-end gap-1.5">
+                ${(slot.smokedCount + skipped) > 0 ? `<button onclick="undoSlotAction('${slot.slotId}')" class="p-2 rounded-xl bg-ios-elevated border border-ios-border text-zinc-400 text-xs active:scale-95">↩</button>` : ''}
+                <button onclick="markSlotSkipped('${slot.slotId}')" class="px-3 py-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-semibold text-xs active:scale-95 transition">
+                  Skipped
+                </button>
                 <button onclick="markSlotSmoked('${slot.slotId}')" class="px-3.5 py-2.5 rounded-xl ${isAvailableNow ? 'bg-amber-500 text-zinc-950 font-bold shadow-sm shadow-amber-500/20' : 'bg-ios-elevated border border-ios-border text-zinc-200 font-semibold'} text-xs active:scale-95 transition">
                   Mark Smoked
                 </button>
               </div>
             `;
+            if (skipped > 0) {
+              badgeHtml += `<span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400">${skipped} Skipped</span>`;
+            }
             badgeHtml += countSub;
           }
 
@@ -567,7 +596,7 @@
                           ${isSwap ? `Smoked Early (${item.timestamp})` : `Unexpected Event (${item.timestamp})`}
                         </p>
                         <p class="text-[11px] text-zinc-400 truncate">
-                          ${isSwap ? `Traded away: ${escapeHtml(item.sacrificedSlotLabel)}` : escapeHtml(item.reason || 'Unplanned circumstance')}
+                          ${isSwap ? `Traded away: ${escapeHtml(item.sacrificedSlotLabel)}${item.fromSkipped ? ' (skipped)' : ''}` : escapeHtml(item.reason || 'Unplanned circumstance')}
                         </p>
                       </div>
                     </div>
@@ -590,11 +619,14 @@
             <div class="relative w-32 h-32 shrink-0 flex items-center justify-center">
               <svg class="w-32 h-32 -rotate-90" viewBox="0 0 120 120">
                 <circle cx="60" cy="60" r="${radius}" stroke="#27272f" stroke-width="10" fill="none" />
-                <circle cx="60" cy="60" r="${radius}" stroke="${ringColor}" stroke-width="10" fill="none"
+                ${skippedLen > 0.5 ? `<circle cx="60" cy="60" r="${radius}" stroke="#10b981" stroke-width="10" fill="none"
                   stroke-linecap="round"
-                  stroke-dasharray="${circumference}"
-                  stroke-dashoffset="${strokeDashoffset}"
-                  style="transition: stroke-dashoffset 0.4s ease, stroke 0.3s ease;" />
+                  stroke-dasharray="${skippedLen} ${circumference}"
+                  stroke-dashoffset="${-smokedLen}" />` : ''}
+                ${smokedLen > 0.5 ? `<circle cx="60" cy="60" r="${radius}" stroke="${ringColor}" stroke-width="10" fill="none"
+                  stroke-linecap="round"
+                  stroke-dasharray="${smokedLen} ${circumference}"
+                  stroke-dashoffset="0" />` : ''}
               </svg>
               <div class="absolute inset-0 flex flex-col items-center justify-center text-center">
                 <span class="text-2xl font-extrabold text-white tracking-tight leading-none">
@@ -617,6 +649,10 @@
               <div class="flex items-center justify-between bg-ios-elevated/80 px-3 py-2 rounded-xl border border-ios-border/60">
                 <span class="text-xs text-zinc-400">Unexpected</span>
                 <span class="text-xs font-bold text-purple-400">+${m.unexpected}</span>
+              </div>
+              <div class="flex items-center justify-between bg-ios-elevated/80 px-3 py-2 rounded-xl border border-ios-border/60">
+                <span class="text-xs text-zinc-400">Skipped</span>
+                <span class="text-xs font-bold text-emerald-400">${m.skipped}</span>
               </div>
             </div>
           </div>
@@ -642,7 +678,7 @@
         <!-- Scheduled Slots List -->
         <div class="flex items-center justify-between mb-2.5 px-1">
           <h2 class="text-xs font-bold uppercase tracking-wider text-zinc-500">Today's Schedule (${DAYS[log.dayOfWeek]})</h2>
-          <span class="text-[11px] text-zinc-500">${m.planned - log.slots.reduce((acc, s) => acc + s.smokedCount + s.sacrificedCount, 0)} slots remaining</span>
+          <span class="text-[11px] text-zinc-500">${m.planned - log.slots.reduce((acc, s) => acc + s.smokedCount + s.sacrificedCount + (s.skippedCount || 0), 0)} slots remaining</span>
         </div>
 
         <div class="space-y-2.5">
@@ -669,23 +705,56 @@
       showToast(`Logged: ${slot.label}`);
     }
 
+    function markSlotSkipped(slotId) {
+      const todayKey = getTodayKey();
+      const log = state.logs[todayKey];
+      const slot = log.slots.find(s => s.slotId === slotId);
+      if (!slot) return;
+
+      const remaining = slot.allowance - (slot.smokedCount + slot.sacrificedCount + (slot.skippedCount || 0));
+      if (remaining <= 0) return;
+
+      slot.skippedCount = (slot.skippedCount || 0) + 1;
+      slot.events.push({ type: 'skipped', timestamp: getCurrentTimeStr() });
+      saveState();
+      render();
+      showToast(`Skipped: ${slot.label}`);
+    }
+
     function undoSlotAction(slotId) {
       const todayKey = getTodayKey();
       const log = state.logs[todayKey];
       const slot = log.slots.find(s => s.slotId === slotId);
-      if (!slot || slot.smokedCount <= 0) return;
+      if (!slot) return;
 
-      slot.smokedCount -= 1;
-      // Remove last scheduled event
+      // Undo the most recent smoked / skipped action on this slot
+      let idx = -1;
       for (let i = slot.events.length - 1; i >= 0; i--) {
-        if (slot.events[i].type === 'scheduled') {
-          slot.events.splice(i, 1);
+        if (slot.events[i].type === 'scheduled' || slot.events[i].type === 'skipped') {
+          idx = i;
           break;
         }
       }
+
+      if (idx === -1) {
+        if (slot.smokedCount <= 0) return;
+        slot.smokedCount -= 1;
+        saveState();
+        render();
+        showToast('Reverted scheduled smoke', '↩');
+        return;
+      }
+
+      const type = slot.events[idx].type;
+      slot.events.splice(idx, 1);
+      if (type === 'skipped') {
+        slot.skippedCount = Math.max(0, (slot.skippedCount || 0) - 1);
+      } else {
+        slot.smokedCount = Math.max(0, slot.smokedCount - 1);
+      }
       saveState();
       render();
-      showToast('Reverted scheduled smoke', '↩');
+      showToast(type === 'skipped' ? 'Skip reverted' : 'Reverted scheduled smoke', '↩');
     }
 
     /**
@@ -694,9 +763,18 @@
     function openSmokeNowModal() {
       const todayKey = getTodayKey();
       const log = state.logs[todayKey];
-      const availableSlots = log.slots.filter(s => (s.allowance - (s.smokedCount + s.sacrificedCount)) > 0);
+      // Trade options: skipped cigarettes first, then cigarettes still available
+      const tradeOptions = [];
+      log.slots.forEach(s => {
+        const sk = s.skippedCount || 0;
+        if (sk > 0) tradeOptions.push({ slot: s, source: 'skipped', count: sk });
+      });
+      log.slots.forEach(s => {
+        const rem = s.allowance - (s.smokedCount + s.sacrificedCount + (s.skippedCount || 0));
+        if (rem > 0) tradeOptions.push({ slot: s, source: 'available', count: rem });
+      });
 
-      if (availableSlots.length === 0) {
+      if (tradeOptions.length === 0) {
         openModal(`
           <div class="text-center py-2">
             <div class="w-12 h-12 rounded-2xl bg-rose-500/15 text-rose-400 flex items-center justify-center mx-auto mb-3">
@@ -719,18 +797,21 @@
         return;
       }
 
-      const optionsHtml = availableSlots.map(s => {
-        const rem = s.allowance - (s.smokedCount + s.sacrificedCount);
+      const optionsHtml = tradeOptions.map(o => {
+        const s = o.slot;
+        const isSkipped = o.source === 'skipped';
         return `
-          <button onclick="confirmSwapSlot('${s.slotId}')" class="w-full text-left p-3.5 rounded-2xl bg-ios-elevated border border-ios-border hover:border-amber-500/60 active:scale-[0.98] transition flex items-center justify-between">
+          <button onclick="confirmSwapSlot('${s.slotId}', '${o.source}')" class="w-full text-left p-3.5 rounded-2xl bg-ios-elevated border ${isSkipped ? 'border-emerald-500/30 hover:border-emerald-500/70' : 'border-ios-border hover:border-amber-500/60'} active:scale-[0.98] transition flex items-center justify-between">
             <div>
               <div class="flex items-center gap-2">
-                <span class="text-sm font-bold text-amber-400 tabular-nums">${s.time}</span>
+                <span class="text-sm font-bold ${isSkipped ? 'text-emerald-400' : 'text-amber-400'} tabular-nums">${s.time}</span>
                 <span class="text-sm font-semibold text-white">${escapeHtml(s.label)}</span>
               </div>
-              <p class="text-[11px] text-zinc-400 mt-0.5">${rem} cigarette${rem > 1 ? 's' : ''} available to forfeit</p>
+              <p class="text-[11px] text-zinc-400 mt-0.5">${isSkipped
+                ? `${o.count} skipped cigarette${o.count > 1 ? 's' : ''} you can use`
+                : `${o.count} cigarette${o.count > 1 ? 's' : ''} available to forfeit`}</p>
             </div>
-            <span class="text-xs font-bold px-2.5 py-1 rounded-xl bg-rose-500/15 text-rose-400">Give Up →</span>
+            <span class="text-xs font-bold px-2.5 py-1 rounded-xl ${isSkipped ? 'bg-emerald-500/15 text-emerald-400' : 'bg-rose-500/15 text-rose-400'}">${isSkipped ? 'Use Skipped →' : 'Give Up →'}</span>
           </button>
         `;
       }).join('');
@@ -742,7 +823,7 @@
             <button onclick="closeModal()" class="w-8 h-8 rounded-full bg-ios-elevated text-zinc-400 flex items-center justify-center text-sm">✕</button>
           </div>
           <p class="text-xs text-zinc-400 mb-4 leading-relaxed">
-            Want a cigarette right now? Choose which scheduled slot today you are <span class="text-amber-400 font-semibold">giving up</span> so your daily quota stays intact:
+            Want a cigarette right now? Choose which scheduled slot today you are <span class="text-amber-400 font-semibold">giving up</span> so your daily quota stays intact (skipped cigarettes are listed first):
           </p>
           <div class="space-y-2.5 max-h-64 overflow-y-auto pr-0.5">
             ${optionsHtml}
@@ -754,14 +835,30 @@
       `);
     }
 
-    function confirmSwapSlot(slotId) {
+    function confirmSwapSlot(slotId, source = 'available') {
       const todayKey = getTodayKey();
       const log = state.logs[todayKey];
       const slot = log.slots.find(s => s.slotId === slotId);
       if (!slot) return;
 
-      const rem = slot.allowance - (slot.smokedCount + slot.sacrificedCount);
-      if (rem <= 0) return;
+      const fromSkipped = source === 'skipped';
+      let skippedAt = null;
+
+      if (fromSkipped) {
+        // Use a cigarette that was skipped earlier: skipped -> forfeited
+        if ((slot.skippedCount || 0) <= 0) return;
+        slot.skippedCount -= 1;
+        for (let i = slot.events.length - 1; i >= 0; i--) {
+          if (slot.events[i].type === 'skipped') {
+            skippedAt = slot.events[i].timestamp;
+            slot.events.splice(i, 1);
+            break;
+          }
+        }
+      } else {
+        const rem = slot.allowance - (slot.smokedCount + slot.sacrificedCount + (slot.skippedCount || 0));
+        if (rem <= 0) return;
+      }
 
       slot.sacrificedCount += 1;
       const nowStr = getCurrentTimeStr();
@@ -772,7 +869,9 @@
         type: 'swapped',
         timestamp: nowStr,
         sacrificedSlotId: slot.slotId,
-        sacrificedSlotLabel: `${slot.time} — ${slot.label}`
+        sacrificedSlotLabel: `${slot.time} — ${slot.label}`,
+        fromSkipped,
+        skippedAt
       });
 
       saveState();
@@ -855,6 +954,11 @@
               slot.events.splice(i, 1);
               break;
             }
+          }
+          if (item.fromSkipped) {
+            // Give the cigarette back as "skipped" instead of "available"
+            slot.skippedCount = (slot.skippedCount || 0) + 1;
+            slot.events.push({ type: 'skipped', timestamp: item.skippedAt || getCurrentTimeStr() });
           }
         }
       }
@@ -1236,9 +1340,10 @@
                 <p class="text-sm font-bold text-white">${formatDisplayDate(key)}</p>
                 ${key === getTodayKey() ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400">Today</span>' : ''}
               </div>
-              <div class="flex items-center gap-3 mt-1 text-[11px] text-zinc-400">
+              <div class="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-[11px] text-zinc-400">
                 <span>Quota: <strong class="text-zinc-200">${m.planned}</strong></span>
                 <span>Swaps: <strong class="text-sky-400">${m.swapped}</strong></span>
+                ${m.skipped ? `<span>Skipped: <strong class="text-emerald-400">${m.skipped}</strong></span>` : ''}
                 <span>Unexpected: <strong class="text-purple-400">+${m.unexpected}</strong></span>
               </div>
             </div>
