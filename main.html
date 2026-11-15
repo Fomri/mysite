@@ -1,0 +1,1365 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  
+  <!-- iOS Web App / Add to Home Screen Meta Tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="SmokeTrack" />
+  <meta name="theme-color" content="#09090b" />
+  <link id="apple-touch-icon" rel="apple-touch-icon" href="" />
+  <link id="favicon" rel="icon" type="image/png" href="" />
+
+  <title>SmokeTrack — Smart Quota & Schedule</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+          },
+          colors: {
+            ios: {
+              bg: '#09090b',
+              card: '#141417',
+              elevated: '#1e1e24',
+              border: '#27272f',
+              accent: '#f59e0b',
+              accentSoft: 'rgba(245, 158, 11, 0.14)',
+              emerald: '#10b981',
+              rose: '#f43f5e',
+              sky: '#38bdf8'
+            }
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    * {
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    input, textarea, select {
+      user-select: text;
+    }
+    body {
+      background-color: #09090b;
+      color: #f4f4f5;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      overscroll-behavior-y: none;
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: calc(5.25rem + env(safe-area-inset-bottom));
+    }
+    .bottom-nav-safe {
+      padding-bottom: calc(0.65rem + env(safe-area-inset-bottom));
+    }
+    .hide-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .hide-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+    @keyframes slideUp {
+      from { transform: translateY(100%); opacity: 0.5; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    .animate-sheet {
+      animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+  </style>
+</head>
+<body class="min-h-screen antialiased selection:bg-amber-500/30">
+
+  <!-- Top Header -->
+  <header class="sticky top-0 z-30 bg-ios-bg/85 backdrop-blur-xl border-b border-ios-border/80 px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-2.5">
+      <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
+        <svg class="w-4 h-4 text-zinc-950" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="text-base font-bold tracking-tight text-white leading-none">SmokeTrack</h1>
+        <p id="header-subtitle" class="text-[11px] text-zinc-400 mt-0.5 font-medium">Quota & Schedule</p>
+      </div>
+    </div>
+
+    <button onclick="openInstallModal()" class="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-full bg-ios-elevated border border-ios-border text-zinc-300 active:scale-95 transition">
+      <svg class="w-3.5 h-3.5 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/>
+      </svg>
+      <span>iOS App</span>
+    </button>
+  </header>
+
+  <!-- Main Content Area -->
+  <main id="app-content" class="max-w-lg mx-auto px-4 pt-4">
+    <!-- Views injected dynamically -->
+  </main>
+
+  <!-- Bottom Tab Navigation (iOS Style) -->
+  <nav class="fixed bottom-0 inset-x-0 z-40 bg-ios-card/90 backdrop-blur-xl border-t border-ios-border bottom-nav-safe pt-2 px-6">
+    <div class="max-w-lg mx-auto grid grid-cols-3 gap-2">
+      <button onclick="switchTab('today')" id="nav-today" class="nav-btn flex flex-col items-center justify-center py-1 rounded-xl transition active:scale-95">
+        <svg class="w-6 h-6 mb-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2v4"/><path d="m16.2 7.8 2.9-2.9"/><path d="M18 12h4"/><path d="m16.2 16.2 2.9 2.9"/><path d="M12 18v4"/><path d="m4.9 19.1 2.9-2.9"/><path d="M2 12h4"/><path d="m4.9 4.9 2.9 2.9"/>
+        </svg>
+        <span class="text-[11px] font-semibold">Today</span>
+      </button>
+
+      <button onclick="switchTab('schedule')" id="nav-schedule" class="nav-btn flex flex-col items-center justify-center py-1 rounded-xl transition active:scale-95">
+        <svg class="w-6 h-6 mb-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
+        <span class="text-[11px] font-semibold">Schedule</span>
+      </button>
+
+      <button onclick="switchTab('stats')" id="nav-stats" class="nav-btn flex flex-col items-center justify-center py-1 rounded-xl transition active:scale-95">
+        <svg class="w-6 h-6 mb-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+        </svg>
+        <span class="text-[11px] font-semibold">Stats</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Modal Backdrop & Container -->
+  <div id="modal-overlay" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm hidden items-end sm:items-center justify-center p-0 sm:p-4" onclick="handleBackdropClick(event)">
+    <div id="modal-box" class="w-full max-w-lg bg-ios-card border-t sm:border border-ios-border rounded-t-3xl sm:rounded-3xl p-5 pb-8 sm:pb-6 shadow-2xl animate-sheet max-h-[88vh] overflow-y-auto">
+      <!-- Modal content injected here -->
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="fixed top-16 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 transition-all duration-200 transform -translate-y-2">
+    <div id="toast-inner" class="bg-zinc-800/95 backdrop-blur-md text-white text-xs font-semibold px-4 py-2.5 rounded-full border border-zinc-700 shadow-xl flex items-center gap-2 whitespace-nowrap">
+    </div>
+  </div>
+
+  <script>
+    /*************************************************************************
+     * 1. GENERATE CRISP APPLE TOUCH ICON VIA CANVAS (FOR ADD TO HOME SCREEN)
+     *************************************************************************/
+    (function generateAppIcon() {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = 512;
+        canvas.height = 512;
+        const ctx = canvas.getContext('2d');
+
+        // Background gradient
+        const grad = ctx.createLinearGradient(0, 0, 512, 512);
+        grad.addColorStop(0, '#18181b');
+        grad.addColorStop(1, '#09090b');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 512, 512);
+
+        // Outer amber ring
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 34;
+        ctx.beginPath();
+        ctx.arc(256, 256, 165, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Inner subtle track
+        ctx.strokeStyle = 'rgba(245, 158, 11, 0.22)';
+        ctx.lineWidth = 14;
+        ctx.beginPath();
+        ctx.arc(256, 256, 120, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Clock hands
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 24;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(256, 256);
+        ctx.lineTo(256, 156);
+        ctx.moveTo(256, 256);
+        ctx.lineTo(326, 290);
+        ctx.stroke();
+
+        // Center dot
+        ctx.fillStyle = '#f59e0b';
+        ctx.beginPath();
+        ctx.arc(256, 256, 18, 0, Math.PI * 2);
+        ctx.fill();
+
+        const dataUrl = canvas.toDataURL('image/png');
+        document.getElementById('apple-touch-icon').href = dataUrl;
+        document.getElementById('favicon').href = dataUrl;
+      } catch (e) {
+        console.warn('Icon generation skipped', e);
+      }
+    })();
+
+    /*************************************************************************
+     * 2. STATE & LOCALSTORAGE PERSISTENCE
+     *************************************************************************/
+    const STORAGE_KEY = 'smoketrack_v1_data';
+    const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const SHORT_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    function uid() {
+      return Date.now().toString(36) + Math.random().toString(36).substring(2, 7);
+    }
+
+    function getTodayKey(offsetDays = 0) {
+      const d = new Date();
+      d.setDate(d.getDate() + offsetDays);
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    function formatDisplayDate(dateStr) {
+      const [y, m, d] = dateStr.split('-').map(Number);
+      const dateObj = new Date(y, m - 1, d);
+      return dateObj.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+    }
+
+    function getCurrentTimeStr() {
+      const now = new Date();
+      return now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    }
+
+    function createSampleSchedule() {
+      const weekdaySlots = () => [
+        { id: uid(), time: '08:30', label: 'Morning Coffee', count: 1 },
+        { id: uid(), time: '10:30', label: 'Break 1', count: 1 },
+        { id: uid(), time: '13:15', label: 'Lunch Break', count: 1 },
+        { id: uid(), time: '16:30', label: 'Afternoon Wrap-up', count: 1 },
+        { id: uid(), time: '20:30', label: 'Evening Social', count: 1 }
+      ];
+      const weekendSlots = () => [
+        { id: uid(), time: '10:00', label: 'Late Morning', count: 1 },
+        { id: uid(), time: '14:00', label: 'Afternoon Chill', count: 1 },
+        { id: uid(), time: '18:30', label: 'Pre-Dinner', count: 1 },
+        { id: uid(), time: '22:00', label: 'Night Out / Social', count: 2 }
+      ];
+      return {
+        0: weekdaySlots(), // Sunday
+        1: weekdaySlots(), // Monday
+        2: weekdaySlots(), // Tuesday
+        3: weekdaySlots(), // Wednesday
+        4: weekdaySlots(), // Thursday
+        5: weekendSlots(), // Friday
+        6: weekendSlots()  // Saturday
+      };
+    }
+
+    let state = {
+      activeTab: 'today',
+      selectedScheduleDay: new Date().getDay(),
+      schedule: {},
+      logs: {} // keyed by YYYY-MM-DD
+    };
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          state.schedule = parsed.schedule || createSampleSchedule();
+          state.logs = parsed.logs || {};
+        } else {
+          state.schedule = createSampleSchedule();
+          saveState();
+        }
+      } catch (e) {
+        console.error('Error loading state:', e);
+        state.schedule = createSampleSchedule();
+      }
+      ensureTodayLog();
+    }
+
+    function saveState() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          schedule: state.schedule,
+          logs: state.logs
+        }));
+      } catch (e) {
+        console.error('Error saving state:', e);
+      }
+    }
+
+    /**
+     * Ensures today's log exists and syncs with today's weekly schedule template
+     * while preserving already completed or sacrificed slot actions.
+     */
+    function ensureTodayLog() {
+      const todayKey = getTodayKey();
+      const dayOfWeek = new Date().getDay();
+      const templateSlots = (state.schedule[dayOfWeek] || []).slice().sort((a, b) => a.time.localeCompare(b.time));
+
+      if (!state.logs[todayKey]) {
+        state.logs[todayKey] = {
+          date: todayKey,
+          dayOfWeek,
+          slots: templateSlots.map(s => ({
+            slotId: s.id,
+            time: s.time,
+            label: s.label,
+            allowance: s.count || 1,
+            smokedCount: 0,
+            sacrificedCount: 0,
+            events: [] // { type: 'scheduled'|'sacrificed', timestamp, note }
+          })),
+          extraLogs: [] // { id, type: 'swapped'|'unexpected', timestamp, reason, sacrificedSlotId, sacrificedSlotLabel }
+        };
+        saveState();
+      } else {
+        // Sync any newly added/edited template slots without wiping progress
+        const log = state.logs[todayKey];
+        const existingMap = new Map(log.slots.map(s => [s.slotId, s]));
+        const syncedSlots = templateSlots.map(t => {
+          if (existingMap.has(t.id)) {
+            const existing = existingMap.get(t.id);
+            existing.time = t.time;
+            existing.label = t.label;
+            existing.allowance = Math.max(t.count || 1, existing.smokedCount + existing.sacrificedCount);
+            return existing;
+          }
+          return {
+            slotId: t.id,
+            time: t.time,
+            label: t.label,
+            allowance: t.count || 1,
+            smokedCount: 0,
+            sacrificedCount: 0,
+            events: []
+          };
+        });
+        log.slots = syncedSlots;
+        saveState();
+      }
+    }
+
+    function getDayMetrics(log) {
+      if (!log) return { planned: 0, smoked: 0, sacrificed: 0, unexpected: 0, swapped: 0 };
+      let planned = 0;
+      let scheduledSmoked = 0;
+      let sacrificed = 0;
+
+      log.slots.forEach(s => {
+        planned += s.allowance;
+        scheduledSmoked += s.smokedCount;
+        sacrificed += s.sacrificedCount;
+      });
+
+      let swapped = 0;
+      let unexpected = 0;
+      (log.extraLogs || []).forEach(e => {
+        if (e.type === 'swapped') swapped += 1;
+        if (e.type === 'unexpected') unexpected += 1;
+      });
+
+      const totalSmoked = scheduledSmoked + swapped + unexpected;
+      return { planned, totalSmoked, scheduledSmoked, sacrificed, swapped, unexpected };
+    }
+
+    /*************************************************************************
+     * 3. UI HELPERS (TOAST & MODALS)
+     *************************************************************************/
+    let toastTimer = null;
+    function showToast(message, icon = '✓') {
+      const toast = document.getElementById('toast');
+      const inner = document.getElementById('toast-inner');
+      inner.innerHTML = `<span class="text-amber-400 font-bold">${icon}</span><span>${message}</span>`;
+      toast.classList.remove('opacity-0', '-translate-y-2');
+      toast.classList.add('opacity-100', 'translate-y-0');
+
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        toast.classList.remove('opacity-100', 'translate-y-0');
+        toast.classList.add('opacity-0', '-translate-y-2');
+      }, 2400);
+    }
+
+    function openModal(htmlContent) {
+      const overlay = document.getElementById('modal-overlay');
+      const box = document.getElementById('modal-box');
+      box.innerHTML = htmlContent;
+      overlay.classList.remove('hidden');
+      overlay.classList.add('flex');
+    }
+
+    function closeModal() {
+      const overlay = document.getElementById('modal-overlay');
+      overlay.classList.add('hidden');
+      overlay.classList.remove('flex');
+    }
+
+    function handleBackdropClick(e) {
+      if (e.target.id === 'modal-overlay') {
+        closeModal();
+      }
+    }
+
+    /*************************************************************************
+     * 4. NAVIGATION & RENDER ROUTER
+     *************************************************************************/
+    function switchTab(tab) {
+      state.activeTab = tab;
+      render();
+    }
+
+    function render() {
+      // Update bottom nav active styles
+      ['today', 'schedule', 'stats'].forEach(t => {
+        const btn = document.getElementById(`nav-${t}`);
+        if (t === state.activeTab) {
+          btn.classList.add('text-amber-400', 'bg-amber-500/10');
+          btn.classList.remove('text-zinc-500');
+        } else {
+          btn.classList.remove('text-amber-400', 'bg-amber-500/10');
+          btn.classList.add('text-zinc-500');
+        }
+      });
+
+      const container = document.getElementById('app-content');
+      if (state.activeTab === 'today') {
+        document.getElementById('header-subtitle').textContent = formatDisplayDate(getTodayKey());
+        container.innerHTML = renderTodayView();
+      } else if (state.activeTab === 'schedule') {
+        document.getElementById('header-subtitle').textContent = 'Weekly Rules & Slots';
+        container.innerHTML = renderScheduleView();
+      } else if (state.activeTab === 'stats') {
+        document.getElementById('header-subtitle').textContent = '7-Day Discipline & Logs';
+        container.innerHTML = renderStatsView();
+      }
+    }
+
+    /*************************************************************************
+     * 5. TODAY VIEW & ACTIONS (CORE LOGIC)
+     *************************************************************************/
+    function renderTodayView() {
+      ensureTodayLog();
+      const todayKey = getTodayKey();
+      const log = state.logs[todayKey];
+      const m = getDayMetrics(log);
+
+      const effectiveLimit = m.planned + m.unexpected;
+      const pct = effectiveLimit > 0 ? Math.min(100, Math.round((m.totalSmoked / effectiveLimit) * 100)) : 0;
+      const radius = 52;
+      const circumference = 2 * Math.PI * radius;
+      const strokeDashoffset = circumference - (pct / 100) * circumference;
+
+      const ringColor = m.totalSmoked > effectiveLimit
+        ? '#f43f5e'
+        : (m.totalSmoked === effectiveLimit && effectiveLimit > 0 ? '#10b981' : '#f59e0b');
+
+      const nowTime = getCurrentTimeStr();
+
+      // Build Slots List HTML
+      let slotsHtml = '';
+      if (log.slots.length === 0) {
+        slotsHtml = `
+          <div class="bg-ios-card border border-ios-border rounded-2xl p-6 text-center">
+            <p class="text-sm text-zinc-400 mb-3">No smoking slots scheduled for ${DAYS[log.dayOfWeek]}.</p>
+            <button onclick="switchTab('schedule')" class="px-4 py-2 rounded-xl bg-amber-500 text-zinc-950 font-semibold text-xs active:scale-95 transition">
+              Configure ${DAYS[log.dayOfWeek]} Schedule
+            </button>
+          </div>
+        `;
+      } else {
+        slotsHtml = log.slots.map(slot => {
+          const used = slot.smokedCount + slot.sacrificedCount;
+          const remaining = slot.allowance - used;
+          const isCompleted = remaining === 0 && slot.smokedCount > 0 && slot.sacrificedCount === 0;
+          const isFullySacrificed = remaining === 0 && slot.sacrificedCount === slot.allowance;
+          const isMixedDone = remaining === 0 && !isCompleted && !isFullySacrificed;
+          const isAvailableNow = slot.time <= nowTime && remaining > 0;
+
+          let cardStyle = 'bg-ios-card border-ios-border';
+          let badgeHtml = '';
+          let actionHtml = '';
+
+          if (isCompleted) {
+            cardStyle = 'bg-ios-card/60 border-emerald-500/25';
+            const lastTime = slot.events.filter(e => e.type === 'scheduled').pop()?.timestamp || '';
+            badgeHtml = `<span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400">✓ Smoked ${lastTime ? 'at ' + lastTime : ''}</span>`;
+            actionHtml = `
+              <button onclick="undoSlotAction('${slot.slotId}')" class="px-3 py-2 rounded-xl bg-ios-elevated border border-ios-border text-zinc-400 text-xs font-medium active:scale-95 transition">
+                Undo
+              </button>
+            `;
+          } else if (isFullySacrificed) {
+            cardStyle = 'bg-ios-card/50 border-rose-500/25';
+            badgeHtml = `<span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-400">⇄ Forfeited Early</span>`;
+            actionHtml = `
+              <span class="text-[11px] text-zinc-500 italic pr-1">Used earlier</span>
+            `;
+          } else if (isMixedDone) {
+            cardStyle = 'bg-ios-card/60 border-zinc-700';
+            badgeHtml = `<span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-zinc-700/60 text-zinc-300">${slot.smokedCount} Smoked · ${slot.sacrificedCount} Forfeited</span>`;
+            actionHtml = `
+              <button onclick="undoSlotAction('${slot.slotId}')" class="px-3 py-2 rounded-xl bg-ios-elevated border border-ios-border text-zinc-400 text-xs font-medium active:scale-95 transition">
+                Undo
+              </button>
+            `;
+          } else {
+            // Has remaining allowance
+            if (isAvailableNow) {
+              cardStyle = 'bg-ios-card border-amber-500/40 shadow-md shadow-amber-500/5';
+              badgeHtml = `<span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400">● Window Open</span>`;
+            } else {
+              badgeHtml = `<span class="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400">Upcoming</span>`;
+            }
+
+            const countSub = slot.allowance > 1 ? `<span class="text-[11px] text-zinc-400 ml-1">(${remaining}/${slot.allowance} left)</span>` : '';
+
+            actionHtml = `
+              <div class="flex items-center gap-1.5">
+                ${used > 0 ? `<button onclick="undoSlotAction('${slot.slotId}')" class="p-2 rounded-xl bg-ios-elevated border border-ios-border text-zinc-400 text-xs active:scale-95">↩</button>` : ''}
+                <button onclick="markSlotSmoked('${slot.slotId}')" class="px-3.5 py-2.5 rounded-xl ${isAvailableNow ? 'bg-amber-500 text-zinc-950 font-bold shadow-sm shadow-amber-500/20' : 'bg-ios-elevated border border-ios-border text-zinc-200 font-semibold'} text-xs active:scale-95 transition">
+                  Mark Smoked
+                </button>
+              </div>
+            `;
+            badgeHtml += countSub;
+          }
+
+          return `
+            <div class="${cardStyle} border rounded-2xl p-3.5 flex items-center justify-between gap-3 transition">
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="text-sm font-bold text-white tabular-nums">${slot.time}</span>
+                  <span class="text-sm font-medium text-zinc-300 truncate">${escapeHtml(slot.label)}</span>
+                </div>
+                <div class="flex flex-wrap items-center gap-1.5">
+                  ${badgeHtml}
+                </div>
+              </div>
+              <div class="shrink-0">
+                ${actionHtml}
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      // Build Extra / Swapped / Unexpected Activity Log HTML
+      let extraLogsHtml = '';
+      if (log.extraLogs && log.extraLogs.length > 0) {
+        extraLogsHtml = `
+          <div class="mt-6">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2.5 px-1">Unscheduled & Unexpected Log</h3>
+            <div class="space-y-2">
+              ${log.extraLogs.map(item => {
+                const isSwap = item.type === 'swapped';
+                return `
+                  <div class="bg-ios-card border border-ios-border rounded-2xl p-3 flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                      <div class="w-8 h-8 rounded-xl ${isSwap ? 'bg-sky-500/15 text-sky-400' : 'bg-purple-500/15 text-purple-400'} flex items-center justify-center shrink-0 text-xs font-bold">
+                        ${isSwap ? '⇄' : '+1'}
+                      </div>
+                      <div class="min-w-0">
+                        <p class="text-xs font-semibold text-zinc-200 truncate">
+                          ${isSwap ? `Smoked Early (${item.timestamp})` : `Unexpected Event (${item.timestamp})`}
+                        </p>
+                        <p class="text-[11px] text-zinc-400 truncate">
+                          ${isSwap ? `Traded away: ${escapeHtml(item.sacrificedSlotLabel)}` : escapeHtml(item.reason || 'Unplanned circumstance')}
+                        </p>
+                      </div>
+                    </div>
+                    <button onclick="undoExtraLog('${item.id}')" class="px-2.5 py-1.5 rounded-lg bg-ios-elevated border border-ios-border text-[11px] font-medium text-zinc-400 hover:text-white active:scale-95 transition shrink-0">
+                      Undo
+                    </button>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        `;
+      }
+
+      return `
+        <!-- Hero Quota Progress Card -->
+        <div class="bg-ios-card border border-ios-border rounded-3xl p-5 mb-4 shadow-xl">
+          <div class="flex items-center justify-between gap-4">
+            <!-- SVG Progress Ring -->
+            <div class="relative w-32 h-32 shrink-0 flex items-center justify-center">
+              <svg class="w-32 h-32 -rotate-90" viewBox="0 0 120 120">
+                <circle cx="60" cy="60" r="${radius}" stroke="#27272f" stroke-width="10" fill="none" />
+                <circle cx="60" cy="60" r="${radius}" stroke="${ringColor}" stroke-width="10" fill="none"
+                  stroke-linecap="round"
+                  stroke-dasharray="${circumference}"
+                  stroke-dashoffset="${strokeDashoffset}"
+                  style="transition: stroke-dashoffset 0.4s ease, stroke 0.3s ease;" />
+              </svg>
+              <div class="absolute inset-0 flex flex-col items-center justify-center text-center">
+                <span class="text-2xl font-extrabold text-white tracking-tight leading-none">
+                  ${m.totalSmoked}<span class="text-zinc-500 text-base font-semibold">/${m.planned}</span>
+                </span>
+                <span class="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mt-1">Smoked</span>
+              </div>
+            </div>
+
+            <!-- Breakdown Pills -->
+            <div class="flex-1 space-y-2">
+              <div class="flex items-center justify-between bg-ios-elevated/80 px-3 py-2 rounded-xl border border-ios-border/60">
+                <span class="text-xs text-zinc-400">Planned Quota</span>
+                <span class="text-xs font-bold text-white">${m.planned}</span>
+              </div>
+              <div class="flex items-center justify-between bg-ios-elevated/80 px-3 py-2 rounded-xl border border-ios-border/60">
+                <span class="text-xs text-zinc-400">Swapped Early</span>
+                <span class="text-xs font-bold text-sky-400">${m.swapped}</span>
+              </div>
+              <div class="flex items-center justify-between bg-ios-elevated/80 px-3 py-2 rounded-xl border border-ios-border/60">
+                <span class="text-xs text-zinc-400">Unexpected</span>
+                <span class="text-xs font-bold text-purple-400">+${m.unexpected}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Primary Action Buttons: Smoke Now (Trade) & +1 Unexpected -->
+          <div class="grid grid-cols-2 gap-2.5 mt-5 pt-4 border-t border-ios-border/80">
+            <button onclick="openSmokeNowModal()" class="flex items-center justify-center gap-2 py-3 px-3 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 text-zinc-950 font-bold text-xs shadow-lg shadow-amber-500/20 active:scale-[0.98] transition">
+              <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+              </svg>
+              <span>Smoke Now (Trade)</span>
+            </button>
+
+            <button onclick="openUnexpectedModal()" class="flex items-center justify-center gap-1.5 py-3 px-3 rounded-2xl bg-ios-elevated border border-ios-border text-zinc-200 font-semibold text-xs hover:border-purple-500/50 active:scale-[0.98] transition">
+              <svg class="w-4 h-4 text-purple-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
+              </svg>
+              <span>+1 Unexpected</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Scheduled Slots List -->
+        <div class="flex items-center justify-between mb-2.5 px-1">
+          <h2 class="text-xs font-bold uppercase tracking-wider text-zinc-500">Today's Schedule (${DAYS[log.dayOfWeek]})</h2>
+          <span class="text-[11px] text-zinc-500">${m.planned - log.slots.reduce((acc, s) => acc + s.smokedCount + s.sacrificedCount, 0)} slots remaining</span>
+        </div>
+
+        <div class="space-y-2.5">
+          ${slotsHtml}
+        </div>
+
+        ${extraLogsHtml}
+      `;
+    }
+
+    function markSlotSmoked(slotId) {
+      const todayKey = getTodayKey();
+      const log = state.logs[todayKey];
+      const slot = log.slots.find(s => s.slotId === slotId);
+      if (!slot) return;
+
+      const remaining = slot.allowance - (slot.smokedCount + slot.sacrificedCount);
+      if (remaining <= 0) return;
+
+      slot.smokedCount += 1;
+      slot.events.push({ type: 'scheduled', timestamp: getCurrentTimeStr() });
+      saveState();
+      render();
+      showToast(`Logged: ${slot.label}`);
+    }
+
+    function undoSlotAction(slotId) {
+      const todayKey = getTodayKey();
+      const log = state.logs[todayKey];
+      const slot = log.slots.find(s => s.slotId === slotId);
+      if (!slot || slot.smokedCount <= 0) return;
+
+      slot.smokedCount -= 1;
+      // Remove last scheduled event
+      for (let i = slot.events.length - 1; i >= 0; i--) {
+        if (slot.events[i].type === 'scheduled') {
+          slot.events.splice(i, 1);
+          break;
+        }
+      }
+      saveState();
+      render();
+      showToast('Reverted scheduled smoke', '↩');
+    }
+
+    /**
+     * MODAL: Smoke Now (Unscheduled) -> Must choose a remaining slot to sacrifice
+     */
+    function openSmokeNowModal() {
+      const todayKey = getTodayKey();
+      const log = state.logs[todayKey];
+      const availableSlots = log.slots.filter(s => (s.allowance - (s.smokedCount + s.sacrificedCount)) > 0);
+
+      if (availableSlots.length === 0) {
+        openModal(`
+          <div class="text-center py-2">
+            <div class="w-12 h-12 rounded-2xl bg-rose-500/15 text-rose-400 flex items-center justify-center mx-auto mb-3">
+              <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            </div>
+            <h3 class="text-lg font-bold text-white mb-1.5">No Slots Left to Trade</h3>
+            <p class="text-xs text-zinc-400 leading-relaxed mb-5">
+              You have already used or forfeited all scheduled cigarettes for today. To stay disciplined, only smoke now if there's an unexpected event.
+            </p>
+            <div class="space-y-2.5">
+              <button onclick="closeModal(); openUnexpectedModal();" class="w-full py-3 rounded-2xl bg-purple-600 text-white font-bold text-sm active:scale-98 transition">
+                Log as +1 Unexpected Event
+              </button>
+              <button onclick="closeModal()" class="w-full py-3 rounded-2xl bg-ios-elevated text-zinc-300 font-semibold text-sm">
+                Cancel (Hold Strong)
+              </button>
+            </div>
+          </div>
+        `);
+        return;
+      }
+
+      const optionsHtml = availableSlots.map(s => {
+        const rem = s.allowance - (s.smokedCount + s.sacrificedCount);
+        return `
+          <button onclick="confirmSwapSlot('${s.slotId}')" class="w-full text-left p-3.5 rounded-2xl bg-ios-elevated border border-ios-border hover:border-amber-500/60 active:scale-[0.98] transition flex items-center justify-between">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-bold text-amber-400 tabular-nums">${s.time}</span>
+                <span class="text-sm font-semibold text-white">${escapeHtml(s.label)}</span>
+              </div>
+              <p class="text-[11px] text-zinc-400 mt-0.5">${rem} cigarette${rem > 1 ? 's' : ''} available to forfeit</p>
+            </div>
+            <span class="text-xs font-bold px-2.5 py-1 rounded-xl bg-rose-500/15 text-rose-400">Give Up →</span>
+          </button>
+        `;
+      }).join('');
+
+      openModal(`
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-lg font-bold text-white">Trade a Scheduled Slot</h3>
+            <button onclick="closeModal()" class="w-8 h-8 rounded-full bg-ios-elevated text-zinc-400 flex items-center justify-center text-sm">✕</button>
+          </div>
+          <p class="text-xs text-zinc-400 mb-4 leading-relaxed">
+            Want a cigarette right now? Choose which scheduled slot today you are <span class="text-amber-400 font-semibold">giving up</span> so your daily quota stays intact:
+          </p>
+          <div class="space-y-2.5 max-h-64 overflow-y-auto pr-0.5">
+            ${optionsHtml}
+          </div>
+          <button onclick="closeModal()" class="w-full mt-4 py-3 rounded-2xl bg-ios-elevated text-zinc-400 font-semibold text-xs">
+            Cancel
+          </button>
+        </div>
+      `);
+    }
+
+    function confirmSwapSlot(slotId) {
+      const todayKey = getTodayKey();
+      const log = state.logs[todayKey];
+      const slot = log.slots.find(s => s.slotId === slotId);
+      if (!slot) return;
+
+      const rem = slot.allowance - (slot.smokedCount + slot.sacrificedCount);
+      if (rem <= 0) return;
+
+      slot.sacrificedCount += 1;
+      const nowStr = getCurrentTimeStr();
+      slot.events.push({ type: 'sacrificed', timestamp: nowStr });
+
+      log.extraLogs.unshift({
+        id: uid(),
+        type: 'swapped',
+        timestamp: nowStr,
+        sacrificedSlotId: slot.slotId,
+        sacrificedSlotLabel: `${slot.time} — ${slot.label}`
+      });
+
+      saveState();
+      closeModal();
+      render();
+      showToast(`Traded ${slot.time} (${slot.label})`, '⇄');
+    }
+
+    /**
+     * MODAL: +1 Unexpected Event
+     */
+    function openUnexpectedModal() {
+      openModal(`
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-lg font-bold text-white">+1 Unexpected Event</h3>
+            <button onclick="closeModal()" class="w-8 h-8 rounded-full bg-ios-elevated text-zinc-400 flex items-center justify-center text-sm">✕</button>
+          </div>
+          <p class="text-xs text-zinc-400 mb-4 leading-relaxed">
+            Use this only for genuine schedule changes (e.g., canceled class, sudden delay, unexpected social event).
+          </p>
+
+          <label class="block text-xs font-semibold text-zinc-300 mb-1.5">Reason (Optional)</label>
+          <input id="unexpected-reason-input" type="text" placeholder="e.g., Canceled lecture, stuck in traffic..."
+            class="w-full px-3.5 py-3 rounded-2xl bg-ios-elevated border border-ios-border text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500 mb-3" />
+
+          <div class="flex flex-wrap gap-1.5 mb-5">
+            ${['Canceled class', 'Schedule delay', 'Social gathering', 'High stress'].map(tag => `
+              <button type="button" onclick="document.getElementById('unexpected-reason-input').value='${tag}'"
+                class="text-[11px] px-2.5 py-1 rounded-full bg-ios-elevated border border-ios-border text-zinc-300 hover:border-purple-400 transition">
+                ${tag}
+              </button>
+            `).join('')}
+          </div>
+
+          <div class="grid grid-cols-2 gap-2.5">
+            <button onclick="closeModal()" class="py-3 rounded-2xl bg-ios-elevated text-zinc-400 font-semibold text-xs">
+              Cancel
+            </button>
+            <button onclick="confirmUnexpectedSmoke()" class="py-3 rounded-2xl bg-purple-600 text-white font-bold text-xs shadow-lg shadow-purple-600/20 active:scale-98 transition">
+              Add & Log Smoke
+            </button>
+          </div>
+        </div>
+      `);
+    }
+
+    function confirmUnexpectedSmoke() {
+      const reasonInput = document.getElementById('unexpected-reason-input');
+      const reason = reasonInput ? reasonInput.value.trim() : '';
+      const todayKey = getTodayKey();
+      const log = state.logs[todayKey];
+
+      log.extraLogs.unshift({
+        id: uid(),
+        type: 'unexpected',
+        timestamp: getCurrentTimeStr(),
+        reason: reason || 'Unexpected schedule break'
+      });
+
+      saveState();
+      closeModal();
+      render();
+      showToast('Added +1 Unexpected cigarette', '+1');
+    }
+
+    function undoExtraLog(extraId) {
+      const todayKey = getTodayKey();
+      const log = state.logs[todayKey];
+      const idx = log.extraLogs.findIndex(e => e.id === extraId);
+      if (idx === -1) return;
+
+      const item = log.extraLogs[idx];
+      if (item.type === 'swapped' && item.sacrificedSlotId) {
+        const slot = log.slots.find(s => s.slotId === item.sacrificedSlotId);
+        if (slot && slot.sacrificedCount > 0) {
+          slot.sacrificedCount -= 1;
+          for (let i = slot.events.length - 1; i >= 0; i--) {
+            if (slot.events[i].type === 'sacrificed') {
+              slot.events.splice(i, 1);
+              break;
+            }
+          }
+        }
+      }
+
+      log.extraLogs.splice(idx, 1);
+      saveState();
+      render();
+      showToast('Entry removed & slot restored', '↩');
+    }
+
+    /*************************************************************************
+     * 6. SCHEDULE SETUP VIEW & CRUD
+     *************************************************************************/
+    function selectScheduleDay(dayIdx) {
+      state.selectedScheduleDay = dayIdx;
+      render();
+    }
+
+    function renderScheduleView() {
+      const dayIdx = state.selectedScheduleDay;
+      const daySlots = (state.schedule[dayIdx] || []).slice().sort((a, b) => a.time.localeCompare(b.time));
+      const totalCigs = daySlots.reduce((sum, s) => sum + (s.count || 1), 0);
+
+      const dayPills = SHORT_DAYS.map((name, idx) => {
+        const isSelected = idx === dayIdx;
+        const count = (state.schedule[idx] || []).reduce((sum, s) => sum + (s.count || 1), 0);
+        return `
+          <button onclick="selectScheduleDay(${idx})"
+            class="flex flex-col items-center py-2.5 px-1 rounded-2xl border transition active:scale-95 ${
+              isSelected
+                ? 'bg-amber-500 text-zinc-950 border-amber-400 font-bold shadow-md shadow-amber-500/20'
+                : 'bg-ios-card text-zinc-400 border-ios-border hover:text-white'
+            }">
+            <span class="text-xs">${name}</span>
+            <span class="text-[10px] mt-0.5 ${isSelected ? 'text-zinc-900 font-extrabold' : 'text-zinc-500'}">${count}</span>
+          </button>
+        `;
+      }).join('');
+
+      const slotsListHtml = daySlots.length === 0
+        ? `
+          <div class="bg-ios-card border border-ios-border rounded-2xl p-8 text-center">
+            <p class="text-sm font-medium text-zinc-300 mb-1">Smoke-Free ${DAYS[dayIdx]}</p>
+            <p class="text-xs text-zinc-500 mb-4">0 cigarettes scheduled for this day.</p>
+            <button onclick="openSlotEditorModal()" class="px-4 py-2.5 rounded-xl bg-amber-500 text-zinc-950 font-bold text-xs active:scale-95 transition">
+              + Add First Slot
+            </button>
+          </div>
+        `
+        : daySlots.map(s => `
+          <div class="bg-ios-card border border-ios-border rounded-2xl p-3.5 flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="px-2.5 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 font-bold text-sm tabular-nums shrink-0">
+                ${s.time}
+              </div>
+              <div class="min-w-0">
+                <p class="text-sm font-semibold text-white truncate">${escapeHtml(s.label)}</p>
+                <p class="text-[11px] text-zinc-400">Allowed: <span class="text-zinc-200 font-semibold">${s.count || 1}</span> cigarette${(s.count || 1) > 1 ? 's' : ''}</p>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-1.5 shrink-0">
+              <button onclick="openSlotEditorModal('${s.id}')" class="p-2 rounded-xl bg-ios-elevated border border-ios-border text-zinc-300 hover:text-white active:scale-95 transition" title="Edit">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </button>
+              <button onclick="deleteScheduleSlot('${s.id}')" class="p-2 rounded-xl bg-ios-elevated border border-ios-border text-rose-400 hover:bg-rose-500/10 active:scale-95 transition" title="Delete">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              </button>
+            </div>
+          </div>
+        `).join('');
+
+      return `
+        <!-- Day Selector Grid -->
+        <div class="grid grid-cols-7 gap-1.5 mb-5">
+          ${dayPills}
+        </div>
+
+        <!-- Selected Day Header -->
+        <div class="flex items-center justify-between mb-3 px-1">
+          <div>
+            <h2 class="text-base font-bold text-white">${DAYS[dayIdx]}</h2>
+            <p class="text-xs text-zinc-400">Daily Quota: <span class="text-amber-400 font-bold">${totalCigs}</span> cigarette${totalCigs !== 1 ? 's' : ''}</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button onclick="openCopyDayModal()" class="px-3 py-2 rounded-xl bg-ios-elevated border border-ios-border text-xs font-semibold text-zinc-300 active:scale-95 transition">
+              Copy Day
+            </button>
+            <button onclick="openSlotEditorModal()" class="px-3.5 py-2 rounded-xl bg-amber-500 text-zinc-950 text-xs font-bold shadow-md shadow-amber-500/20 active:scale-95 transition">
+              + Add Slot
+            </button>
+          </div>
+        </div>
+
+        <!-- Slots List -->
+        <div class="space-y-2.5 mb-6">
+          ${slotsListHtml}
+        </div>
+
+        <!-- Reset / Clear Utilities -->
+        <div class="pt-4 border-t border-ios-border/80 flex items-center justify-between gap-2">
+          <button onclick="clearCurrentDaySchedule()" class="text-xs font-medium text-zinc-400 hover:text-rose-400 px-3 py-2 rounded-xl bg-ios-card border border-ios-border transition">
+            Clear ${DAYS[dayIdx]}
+          </button>
+          <button onclick="resetToSampleSchedule()" class="text-xs font-medium text-zinc-400 hover:text-amber-400 px-3 py-2 rounded-xl bg-ios-card border border-ios-border transition">
+            Load Sample Week
+          </button>
+        </div>
+      `;
+    }
+
+    function openSlotEditorModal(slotId = null) {
+      const dayIdx = state.selectedScheduleDay;
+      const existing = slotId ? (state.schedule[dayIdx] || []).find(s => s.id === slotId) : null;
+
+      const timeVal = existing ? existing.time : '12:00';
+      const labelVal = existing ? existing.label : '';
+      const countVal = existing ? (existing.count || 1) : 1;
+
+      openModal(`
+        <div>
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-lg font-bold text-white">${existing ? 'Edit Slot' : 'New Smoking Slot'} (${SHORT_DAYS[dayIdx]})</h3>
+            <button onclick="closeModal()" class="w-8 h-8 rounded-full bg-ios-elevated text-zinc-400 flex items-center justify-center text-sm">✕</button>
+          </div>
+
+          <div class="space-y-3.5">
+            <div>
+              <label class="block text-xs font-semibold text-zinc-300 mb-1.5">Allowed Time</label>
+              <input id="slot-time-input" type="time" value="${timeVal}"
+                class="w-full px-3.5 py-3 rounded-2xl bg-ios-elevated border border-ios-border text-white text-base font-bold focus:outline-none focus:border-amber-500" />
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-zinc-300 mb-1.5">Slot Label / Context</label>
+              <input id="slot-label-input" type="text" value="${escapeHtml(labelVal)}" placeholder="e.g., Morning Break, Lunch, Social"
+                class="w-full px-3.5 py-3 rounded-2xl bg-ios-elevated border border-ios-border text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500" />
+              <div class="flex flex-wrap gap-1.5 mt-2">
+                ${['Morning Break', 'Break 2', 'Lunch', 'After Work', 'Social'].map(preset => `
+                  <button type="button" onclick="document.getElementById('slot-label-input').value='${preset}'"
+                    class="text-[11px] px-2.5 py-1 rounded-full bg-ios-elevated border border-ios-border text-zinc-400 hover:text-white">
+                    ${preset}
+                  </button>
+                `).join('')}
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-zinc-300 mb-1.5">Cigarettes Allowed in This Slot</label>
+              <div class="grid grid-cols-3 gap-2">
+                ${[1, 2, 3].map(n => `
+                  <button type="button" onclick="selectSlotCount(${n})" id="count-opt-${n}"
+                    class="count-opt-btn py-2.5 rounded-xl border text-sm font-bold transition ${
+                      countVal === n
+                        ? 'bg-amber-500 text-zinc-950 border-amber-400'
+                        : 'bg-ios-elevated text-zinc-300 border-ios-border'
+                    }">
+                    ${n}
+                  </button>
+                `).join('')}
+              </div>
+              <input type="hidden" id="slot-count-input" value="${countVal}" />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2.5 mt-6">
+            <button onclick="closeModal()" class="py-3 rounded-2xl bg-ios-elevated text-zinc-400 font-semibold text-xs">
+              Cancel
+            </button>
+            <button onclick="saveScheduleSlot('${slotId || ''}')" class="py-3 rounded-2xl bg-amber-500 text-zinc-950 font-bold text-xs shadow-lg shadow-amber-500/20 active:scale-98 transition">
+              Save Slot
+            </button>
+          </div>
+        </div>
+      `);
+    }
+
+    function selectSlotCount(n) {
+      document.getElementById('slot-count-input').value = n;
+      [1, 2, 3].forEach(num => {
+        const btn = document.getElementById(`count-opt-${num}`);
+        if (num === n) {
+          btn.className = 'count-opt-btn py-2.5 rounded-xl border text-sm font-bold transition bg-amber-500 text-zinc-950 border-amber-400';
+        } else {
+          btn.className = 'count-opt-btn py-2.5 rounded-xl border text-sm font-bold transition bg-ios-elevated text-zinc-300 border-ios-border';
+        }
+      });
+    }
+
+    function saveScheduleSlot(slotId) {
+      const time = document.getElementById('slot-time-input').value || '12:00';
+      const label = document.getElementById('slot-label-input').value.trim() || 'Scheduled Break';
+      const count = parseInt(document.getElementById('slot-count-input').value, 10) || 1;
+      const dayIdx = state.selectedScheduleDay;
+
+      if (!state.schedule[dayIdx]) state.schedule[dayIdx] = [];
+
+      if (slotId) {
+        const slot = state.schedule[dayIdx].find(s => s.id === slotId);
+        if (slot) {
+          slot.time = time;
+          slot.label = label;
+          slot.count = count;
+        }
+      } else {
+        state.schedule[dayIdx].push({ id: uid(), time, label, count });
+      }
+
+      saveState();
+      if (dayIdx === new Date().getDay()) {
+        ensureTodayLog();
+      }
+      closeModal();
+      render();
+      showToast(slotId ? 'Slot updated' : 'Slot added');
+    }
+
+    function deleteScheduleSlot(slotId) {
+      const dayIdx = state.selectedScheduleDay;
+      state.schedule[dayIdx] = (state.schedule[dayIdx] || []).filter(s => s.id !== slotId);
+      saveState();
+      if (dayIdx === new Date().getDay()) {
+        ensureTodayLog();
+      }
+      render();
+      showToast('Slot deleted', '🗑');
+    }
+
+    function openCopyDayModal() {
+      const srcIdx = state.selectedScheduleDay;
+      const checkboxes = DAYS.map((d, idx) => {
+        if (idx === srcIdx) return '';
+        return `
+          <label class="flex items-center justify-between p-3 rounded-xl bg-ios-elevated border border-ios-border cursor-pointer">
+            <span class="text-sm font-medium text-white">${d}</span>
+            <input type="checkbox" value="${idx}" class="copy-day-cb w-4 h-4 accent-amber-500 rounded" />
+          </label>
+        `;
+      }).join('');
+
+      openModal(`
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-lg font-bold text-white">Copy ${DAYS[srcIdx]} Schedule</h3>
+            <button onclick="closeModal()" class="w-8 h-8 rounded-full bg-ios-elevated text-zinc-400 flex items-center justify-center text-sm">✕</button>
+          </div>
+          <p class="text-xs text-zinc-400 mb-3">Select target days to overwrite with ${DAYS[srcIdx]}'s slots:</p>
+          <div class="space-y-2 max-h-60 overflow-y-auto mb-4">
+            ${checkboxes}
+          </div>
+          <div class="grid grid-cols-2 gap-2.5">
+            <button onclick="closeModal()" class="py-3 rounded-2xl bg-ios-elevated text-zinc-400 font-semibold text-xs">Cancel</button>
+            <button onclick="confirmCopyDay()" class="py-3 rounded-2xl bg-amber-500 text-zinc-950 font-bold text-xs">Apply to Selected</button>
+          </div>
+        </div>
+      `);
+    }
+
+    function confirmCopyDay() {
+      const srcIdx = state.selectedScheduleDay;
+      const srcSlots = state.schedule[srcIdx] || [];
+      const checked = Array.from(document.querySelectorAll('.copy-day-cb:checked')).map(el => parseInt(el.value, 10));
+
+      checked.forEach(targetIdx => {
+        state.schedule[targetIdx] = srcSlots.map(s => ({
+          id: uid(),
+          time: s.time,
+          label: s.label,
+          count: s.count || 1
+        }));
+      });
+
+      saveState();
+      ensureTodayLog();
+      closeModal();
+      render();
+      showToast(`Copied to ${checked.length} day${checked.length !== 1 ? 's' : ''}`);
+    }
+
+    function clearCurrentDaySchedule() {
+      const dayIdx = state.selectedScheduleDay;
+      state.schedule[dayIdx] = [];
+      saveState();
+      if (dayIdx === new Date().getDay()) ensureTodayLog();
+      render();
+      showToast(`Cleared ${DAYS[dayIdx]}`, '🗑');
+    }
+
+    function resetToSampleSchedule() {
+      state.schedule = createSampleSchedule();
+      saveState();
+      ensureTodayLog();
+      render();
+      showToast('Sample weekly schedule loaded');
+    }
+
+    /*************************************************************************
+     * 7. STATS & 7-DAY HISTORY VIEW
+     *************************************************************************/
+    function renderStatsView() {
+      ensureTodayLog();
+
+      // Gather last 7 days
+      const last7 = [];
+      let totalSmoked7d = 0;
+      let totalPlanned7d = 0;
+      let totalSwaps7d = 0;
+      let totalUnexpected7d = 0;
+
+      for (let i = 6; i >= 0; i--) {
+        const key = getTodayKey(-i);
+        const [y, m, d] = key.split('-').map(Number);
+        const dateObj = new Date(y, m - 1, d);
+        const dow = dateObj.getDay();
+
+        let log = state.logs[key];
+        let metrics;
+        if (log) {
+          metrics = getDayMetrics(log);
+        } else {
+          const planned = (state.schedule[dow] || []).reduce((sum, s) => sum + (s.count || 1), 0);
+          metrics = { planned, totalSmoked: 0, swapped: 0, unexpected: 0 };
+        }
+
+        totalSmoked7d += metrics.totalSmoked;
+        totalPlanned7d += metrics.planned;
+        totalSwaps7d += metrics.swapped;
+        totalUnexpected7d += metrics.unexpected;
+
+        last7.push({
+          key,
+          shortDay: SHORT_DAYS[dow],
+          dateLabel: dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          isToday: i === 0,
+          hasLog: Boolean(log),
+          ...metrics
+        });
+      }
+
+      const maxVal = Math.max(6, ...last7.map(d => Math.max(d.totalSmoked, d.planned)));
+
+      const barsHtml = last7.map(d => {
+        const smokedHeightPct = Math.round((d.totalSmoked / maxVal) * 100);
+        const plannedHeightPct = Math.round((d.planned / maxVal) * 100);
+        const overQuota = d.totalSmoked > (d.planned + d.unexpected);
+
+        return `
+          <div class="flex flex-col items-center flex-1">
+            <span class="text-[11px] font-bold ${d.isToday ? 'text-amber-400' : 'text-zinc-300'} mb-1.5 tabular-nums">
+              ${d.totalSmoked}
+            </span>
+            <div class="w-full max-w-[28px] h-32 bg-ios-elevated/70 rounded-xl relative flex items-end overflow-hidden border border-ios-border/60">
+              <!-- Planned quota marker line -->
+              <div style="bottom: ${plannedHeightPct}%" class="absolute inset-x-0 border-t border-dashed border-zinc-500/70 z-10"></div>
+              <!-- Smoked bar -->
+              <div style="height: ${smokedHeightPct}%"
+                class="w-full rounded-t-lg transition-all duration-500 ${
+                  overQuota ? 'bg-rose-500' : (d.isToday ? 'bg-amber-500' : 'bg-emerald-500/85')
+                }">
+              </div>
+            </div>
+            <span class="text-[11px] font-semibold mt-2 ${d.isToday ? 'text-amber-400' : 'text-zinc-400'}">${d.shortDay}</span>
+          </div>
+        `;
+      }).join('');
+
+      // Past logged days list
+      const allLoggedKeys = Object.keys(state.logs).sort((a, b) => b.localeCompare(a));
+      const historyCards = allLoggedKeys.map(key => {
+        const log = state.logs[key];
+        const m = getDayMetrics(log);
+        const limit = m.planned + m.unexpected;
+        const onTrack = m.totalSmoked <= limit;
+
+        return `
+          <div class="bg-ios-card border border-ios-border rounded-2xl p-3.5 flex items-center justify-between">
+            <div>
+              <div class="flex items-center gap-2">
+                <p class="text-sm font-bold text-white">${formatDisplayDate(key)}</p>
+                ${key === getTodayKey() ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400">Today</span>' : ''}
+              </div>
+              <div class="flex items-center gap-3 mt-1 text-[11px] text-zinc-400">
+                <span>Quota: <strong class="text-zinc-200">${m.planned}</strong></span>
+                <span>Swaps: <strong class="text-sky-400">${m.swapped}</strong></span>
+                <span>Unexpected: <strong class="text-purple-400">+${m.unexpected}</strong></span>
+              </div>
+            </div>
+
+            <div class="text-right">
+              <span class="text-base font-extrabold ${onTrack ? 'text-emerald-400' : 'text-rose-400'} tabular-nums">
+                ${m.totalSmoked} <span class="text-xs font-medium text-zinc-500">/ ${limit}</span>
+              </span>
+              <p class="text-[10px] font-semibold ${onTrack ? 'text-emerald-500/80' : 'text-rose-400'}">
+                ${onTrack ? 'Within Limit' : 'Over Limit'}
+              </p>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      return `
+        <!-- Summary Metrics -->
+        <div class="grid grid-cols-3 gap-2.5 mb-4">
+          <div class="bg-ios-card border border-ios-border rounded-2xl p-3.5">
+            <p class="text-[11px] text-zinc-400 font-medium">7-Day Total</p>
+            <p class="text-xl font-extrabold text-white mt-0.5 tabular-nums">${totalSmoked7d}</p>
+            <p class="text-[10px] text-zinc-500 mt-0.5">vs ${totalPlanned7d} planned</p>
+          </div>
+          <div class="bg-ios-card border border-ios-border rounded-2xl p-3.5">
+            <p class="text-[11px] text-zinc-400 font-medium">Slots Traded</p>
+            <p class="text-xl font-extrabold text-sky-400 mt-0.5 tabular-nums">${totalSwaps7d}</p>
+            <p class="text-[10px] text-zinc-500 mt-0.5">Kept quota intact</p>
+          </div>
+          <div class="bg-ios-card border border-ios-border rounded-2xl p-3.5">
+            <p class="text-[11px] text-zinc-400 font-medium">Unexpected</p>
+            <p class="text-xl font-extrabold text-purple-400 mt-0.5 tabular-nums">+${totalUnexpected7d}</p>
+            <p class="text-[10px] text-zinc-500 mt-0.5">Extra events</p>
+          </div>
+        </div>
+
+        <!-- 7-Day Bar Chart -->
+        <div class="bg-ios-card border border-ios-border rounded-3xl p-4 mb-5">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-zinc-400">Last 7 Days</h3>
+            <div class="flex items-center gap-3 text-[10px] text-zinc-400">
+              <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> Within Quota</span>
+              <span class="flex items-center gap-1"><span class="w-2.5 border-t border-dashed border-zinc-400"></span> Quota</span>
+            </div>
+          </div>
+          <div class="flex items-end justify-between gap-2 pt-2">
+            ${barsHtml}
+          </div>
+        </div>
+
+        <!-- Daily History Log -->
+        <h3 class="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2.5 px-1">Daily Logs</h3>
+        <div class="space-y-2.5">
+          ${historyCards}
+        </div>
+      `;
+    }
+
+    /*************************************************************************
+     * 8. iOS HOME SCREEN GUIDE MODAL & UTILS
+     *************************************************************************/
+    function openInstallModal() {
+      openModal(`
+        <div>
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2.5">
+              <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-orange-600 flex items-center justify-center text-zinc-950 font-bold">
+                
+              </div>
+              <h3 class="text-base font-bold text-white">Add to iPhone Home Screen</h3>
+            </div>
+            <button onclick="closeModal()" class="w-8 h-8 rounded-full bg-ios-elevated text-zinc-400 flex items-center justify-center text-sm">✕</button>
+          </div>
+
+          <p class="text-xs text-zinc-400 leading-relaxed mb-4">
+            Install <strong class="text-white">SmokeTrack</strong> as a full-screen iOS app. All your schedules and daily logs stay saved directly on your device.
+          </p>
+
+          <div class="space-y-2.5 text-xs text-zinc-200 mb-5">
+            <div class="p-3 rounded-2xl bg-ios-elevated border border-ios-border flex items-center gap-3">
+              <span class="w-6 h-6 rounded-full bg-amber-500/20 text-amber-400 font-bold flex items-center justify-center shrink-0">1</span>
+              <span>Open this page in <strong>Safari</strong> on your iPhone.</span>
+            </div>
+            <div class="p-3 rounded-2xl bg-ios-elevated border border-ios-border flex items-center gap-3">
+              <span class="w-6 h-6 rounded-full bg-amber-500/20 text-amber-400 font-bold flex items-center justify-center shrink-0">2</span>
+              <span>Tap the <strong>Share</strong> icon <span class="inline-block px-1.5 py-0.5 rounded bg-zinc-700 text-sky-400 font-bold">↑</span> at the bottom of the screen.</span>
+            </div>
+            <div class="p-3 rounded-2xl bg-ios-elevated border border-ios-border flex items-center gap-3">
+              <span class="w-6 h-6 rounded-full bg-amber-500/20 text-amber-400 font-bold flex items-center justify-center shrink-0">3</span>
+              <span>Scroll down and tap <strong>"Add to Home Screen"</strong>.</span>
+            </div>
+          </div>
+
+          <button onclick="closeModal()" class="w-full py-3 rounded-2xl bg-amber-500 text-zinc-950 font-bold text-xs">
+            Got It
+          </button>
+        </div>
+      `);
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/[&<>"']/g, m => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      })[m]);
+    }
+
+    // Boot Application
+    window.addEventListener('DOMContentLoaded', () => {
+      loadState();
+      render();
+    });
+  </script>
+</body>
+</html>
