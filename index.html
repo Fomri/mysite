@@ -461,9 +461,7 @@
       const smokedLen = smokedFrac * circumference;
       const skippedLen = skippedFrac * circumference;
 
-      const ringColor = m.totalSmoked > effectiveLimit
-        ? '#f43f5e'
-        : (m.totalSmoked === effectiveLimit && effectiveLimit > 0 ? '#10b981' : '#f59e0b');
+      const ringColor = m.totalSmoked > effectiveLimit ? '#f43f5e' : '#f59e0b';
 
       const nowTime = getCurrentTimeStr();
 
@@ -494,9 +492,9 @@
           let actionHtml = '';
 
           if (isCompleted) {
-            cardStyle = 'bg-ios-card/60 border-emerald-500/25';
+            cardStyle = 'bg-ios-card/60 border-amber-500/30';
             const lastTime = slot.events.filter(e => e.type === 'scheduled').pop()?.timestamp || '';
-            badgeHtml = `<span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400">✓ Smoked ${lastTime ? 'at ' + lastTime : ''}</span>`;
+            badgeHtml = `<span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400">✓ Smoked ${lastTime ? 'at ' + lastTime : ''}</span>`;
             actionHtml = `
               <button onclick="undoSlotAction('${slot.slotId}')" class="px-3 py-2 rounded-xl bg-ios-elevated border border-ios-border text-zinc-400 text-xs font-medium active:scale-95 transition">
                 Undo
