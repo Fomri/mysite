@@ -371,6 +371,77 @@
       return { planned, totalSmoked, scheduledSmoked, sacrificed, skipped, swapped, unexpected };
     }
 
+    /**
+     * Smoke-time helpers (used by the "since last cigarette" stopwatch and the average gap in Stats).
+     * New events carry a precise `ts` (ms); older ones only have "HH:MM", so we rebuild a time from the day key.
+     */
+    function eventTs(dateKey, ev) {
+      if (ev.ts) return ev.ts;
+      if (!ev.timestamp) return null;
+      const [y, m, d] = dateKey.split('-').map(Number);
+      const [hh, mm] = ev.timestamp.split(':').map(Number);
+      if (isNaN(hh) || isNaN(mm)) return null;
+      return new Date(y, m - 1, d, hh, mm).getTime();
+    }
+
+    // Sorted list of the times (ms) a cigarette was actually smoked on a given day
+    function getSmokeTimes(log, dateKey) {
+      if (!log) return [];
+      const times = [];
+      (log.slots || []).forEach(s => (s.events || []).forEach(e => {
+        if (e.type === 'scheduled') {
+          const t = eventTs(dateKey, e);
+          if (t) times.push(t);
+        }
+      }));
+      (log.extraLogs || []).forEach(e => {
+        if (e.type === 'swapped' || e.type === 'unexpected') {
+          const t = eventTs(dateKey, e);
+          if (t) times.push(t);
+        }
+      });
+      return times.sort((a, b) => a - b);
+    }
+
+    // Most recent smoked cigarette across all days (null if none logged)
+    function getLastSmokeTs() {
+      const keys = Object.keys(state.logs).sort((a, b) => b.localeCompare(a));
+      for (const k of keys) {
+        const t = getSmokeTimes(state.logs[k], k);
+        if (t.length) return t[t.length - 1];
+      }
+      return null;
+    }
+
+    // Average gap (ms) between consecutive cigarettes in a day; null if fewer than 2
+    function getAvgGapMs(times) {
+      if (times.length < 2) return null;
+      return (times[times.length - 1] - times[0]) / (times.length - 1);
+    }
+
+    function formatGap(ms) {
+      const totalMin = Math.round(ms / 60000);
+      const h = Math.floor(totalMin / 60);
+      const m = totalMin % 60;
+      return h > 0 ? `${h}h ${m}m` : `${m}m`;
+    }
+
+    function formatStopwatch(ms) {
+      const total = Math.max(0, Math.floor(ms / 1000));
+      const h = Math.floor(total / 3600);
+      const m = Math.floor((total % 3600) / 60);
+      const sec = total % 60;
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+    }
+
+    function tickStopwatch() {
+      const el = document.getElementById('since-last');
+      if (!el) return;
+      const ts = Number(el.dataset.ts);
+      if (!ts) return;
+      el.textContent = formatStopwatch(Date.now() - ts);
+    }
+
     /*************************************************************************
      * 3. UI HELPERS (TOAST & MODALS)
      *************************************************************************/
@@ -464,6 +535,15 @@
       const ringColor = m.totalSmoked > effectiveLimit ? '#f43f5e' : '#f59e0b';
 
       const nowTime = getCurrentTimeStr();
+
+      const lastTs = getLastSmokeTs();
+      let lastLabel = '';
+      if (lastTs) {
+        const ld = new Date(lastTs);
+        const lastClock = ld.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+        const sameDay = ld.toDateString() === new Date().toDateString();
+        lastLabel = sameDay ? lastClock : `${ld.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ${lastClock}`;
+      }
 
       // Build Slots List HTML
       let slotsHtml = '';
@@ -655,6 +735,20 @@
             </div>
           </div>
 
+          <!-- Time since last cigarette (live stopwatch) -->
+          <div class="mt-4 flex items-center justify-between gap-3 bg-ios-elevated/80 px-3.5 py-2.5 rounded-2xl border border-ios-border/60">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <svg class="w-4 h-4 text-sky-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="13" r="8"/><polyline points="12 9 12 13 14.5 14.5"/><line x1="9" y1="2" x2="15" y2="2"/>
+              </svg>
+              <div class="min-w-0">
+                <p class="text-xs font-semibold text-zinc-300 leading-none">Since last cigarette</p>
+                <p class="text-[10px] text-zinc-500 mt-1 truncate">${lastTs ? 'Last smoked at ' + lastLabel : 'No cigarettes logged yet'}</p>
+              </div>
+            </div>
+            <span id="since-last" data-ts="${lastTs || ''}" class="text-lg font-extrabold text-white tabular-nums shrink-0">${lastTs ? formatStopwatch(Date.now() - lastTs) : '--:--:--'}</span>
+          </div>
+
           <!-- Primary Action Buttons: Smoke Now (Trade) & +1 Unexpected -->
           <div class="grid grid-cols-2 gap-2.5 mt-5 pt-4 border-t border-ios-border/80">
             <button onclick="openSmokeNowModal()" class="flex items-center justify-center gap-2 py-3 px-3 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 text-zinc-950 font-bold text-xs shadow-lg shadow-amber-500/20 active:scale-[0.98] transition">
@@ -697,7 +791,7 @@
       if (remaining <= 0) return;
 
       slot.smokedCount += 1;
-      slot.events.push({ type: 'scheduled', timestamp: getCurrentTimeStr() });
+      slot.events.push({ type: 'scheduled', timestamp: getCurrentTimeStr(), ts: Date.now() });
       saveState();
       render();
       showToast(`Logged: ${slot.label}`);
@@ -866,6 +960,7 @@
         id: uid(),
         type: 'swapped',
         timestamp: nowStr,
+        ts: Date.now(),
         sacrificedSlotId: slot.slotId,
         sacrificedSlotLabel: `${slot.time} — ${slot.label}`,
         fromSkipped,
@@ -927,6 +1022,7 @@
         id: uid(),
         type: 'unexpected',
         timestamp: getCurrentTimeStr(),
+        ts: Date.now(),
         reason: reason || 'Unexpected schedule break'
       });
 
@@ -1330,6 +1426,7 @@
         const m = getDayMetrics(log);
         const limit = m.planned + m.unexpected;
         const onTrack = m.totalSmoked <= limit;
+        const avgGap = getAvgGapMs(getSmokeTimes(log, key));
 
         return `
           <div class="bg-ios-card border border-ios-border rounded-2xl p-3.5 flex items-center justify-between">
@@ -1342,6 +1439,7 @@
                 <span>Quota: <strong class="text-zinc-200">${m.planned}</strong></span>
                 <span>Swaps: <strong class="text-sky-400">${m.swapped}</strong></span>
                 ${m.skipped ? `<span>Skipped: <strong class="text-emerald-400">${m.skipped}</strong></span>` : ''}
+                <span>Avg gap: <strong class="text-amber-400">${avgGap === null ? '—' : formatGap(avgGap)}</strong></span>
                 <span>Unexpected: <strong class="text-purple-400">+${m.unexpected}</strong></span>
               </div>
             </div>
@@ -1457,6 +1555,7 @@
     window.addEventListener('DOMContentLoaded', () => {
       loadState();
       render();
+      setInterval(tickStopwatch, 1000);
     });
   </script>
 </body>
