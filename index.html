@@ -411,7 +411,12 @@
       const [y, m, d] = dateKey.split('-').map(Number);
       const [hh, mm] = ev.timestamp.split(':').map(Number);
       if (isNaN(hh) || isNaN(mm)) return null;
-      return new Date(y, m - 1, d, hh, mm).getTime();
+      // A logical day starts at 04:00: legacy HH:MM events before 04:00
+      // happened on the following calendar date.
+      const eventDate = new Date(y, m - 1, d);
+      if (hh < 4) eventDate.setDate(eventDate.getDate() + 1);
+      eventDate.setHours(hh, mm, 0, 0);
+      return eventDate.getTime();
     }
 
     // Sorted list of the times (ms) a cigarette was actually smoked on a given day
@@ -1480,8 +1485,8 @@
         const avgGap = getAvgGapMs(getSmokeTimes(log, key));
 
         return `
-          <div class="bg-ios-card border border-ios-border rounded-2xl p-3.5 flex items-center justify-between">
-            <div>
+          <button type="button" onclick="openDailyLogDetails('${key}')" class="w-full text-left bg-ios-card border border-ios-border rounded-2xl p-3.5 flex items-center justify-between active:scale-[0.99] transition">
+            <div class="min-w-0">
               <div class="flex items-center gap-2">
                 <p class="text-sm font-bold text-white">${formatDisplayDate(key)}</p>
                 ${key === getTodayKey() ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400">Today</span>' : ''}
@@ -1503,7 +1508,8 @@
                 ${onTrack ? 'Within Limit' : 'Over Limit'}
               </p>
             </div>
-          </div>
+            <span class="text-zinc-500 text-xs ml-2" aria-hidden="true">›</span>
+          </button>
         `;
       }).join('');
 
@@ -1547,6 +1553,74 @@
           ${historyCards}
         </div>
       `;
+    }
+
+    function openDailyLogDetails(dateKey) {
+      const log = state.logs[dateKey];
+      if (!log) return;
+      const entries = [];
+
+      (log.slots || []).forEach(slot => {
+        (slot.events || []).forEach(ev => {
+          if (ev.type !== 'scheduled') return;
+          const ts = eventTs(dateKey, ev);
+          if (!ts) return;
+          entries.push({
+            ts,
+            type: 'scheduled',
+            label: slot.label || 'Scheduled cigarette',
+            reason: ev.note || ev.reason || `Scheduled slot: ${slot.time || ''} ${slot.label || ''}`.trim()
+          });
+        });
+      });
+
+      (log.extraLogs || []).forEach(ev => {
+        if (ev.type !== 'swapped' && ev.type !== 'unexpected') return;
+        const ts = eventTs(dateKey, ev);
+        if (!ts) return;
+        if (ev.type === 'unexpected') {
+          entries.push({ ts, type: 'unexpected', label: 'Unexpected cigarette', reason: ev.reason || 'Unexpected schedule break' });
+        } else {
+          entries.push({ ts, type: 'traded', label: 'Traded cigarette', reason: ev.sacrificedSlotLabel ? `Traded for ${ev.sacrificedSlotLabel}` : 'Traded for a scheduled slot' });
+        }
+      });
+
+      entries.sort((a, b) => a.ts - b.ts);
+      const styles = {
+        scheduled: { title: 'Scheduled', color: 'text-emerald-400', dot: 'bg-emerald-400', border: 'border-emerald-500/30' },
+        unexpected: { title: 'Unexpected', color: 'text-purple-400', dot: 'bg-purple-400', border: 'border-purple-500/30' },
+        traded: { title: 'Traded', color: 'text-sky-400', dot: 'bg-sky-400', border: 'border-sky-500/30' }
+      };
+      const entriesHtml = entries.length ? entries.map((entry, index) => {
+        const style = styles[entry.type];
+        const time = new Date(entry.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+        return `
+          <div class="rounded-2xl border ${style.border} bg-ios-elevated/70 p-3.5 flex gap-3">
+            <div class="flex flex-col items-center pt-1"><span class="w-2.5 h-2.5 rounded-full ${style.dot}"></span><span class="text-[10px] text-zinc-600 mt-1">${index + 1}</span></div>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center justify-between gap-3">
+                <span class="text-sm font-bold ${style.color}">${style.title}</span>
+                <span class="text-sm font-bold text-white tabular-nums">${time}</span>
+              </div>
+              <p class="text-xs text-zinc-200 mt-1">${escapeHtml(entry.label)}</p>
+              <p class="text-[11px] text-zinc-400 mt-1">Reason: ${escapeHtml(entry.reason)}</p>
+            </div>
+          </div>`;
+      }).join('') : '<p class="text-sm text-zinc-400 text-center py-8">No cigarettes were logged for this day.</p>';
+
+      openModal(`
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <h3 class="text-lg font-bold text-white">${formatDisplayDate(dateKey)}</h3>
+            <button onclick="closeModal()" class="w-8 h-8 rounded-full bg-ios-elevated text-zinc-400 flex items-center justify-center text-sm">✕</button>
+          </div>
+          <p class="text-[11px] text-zinc-500 mb-4">Daily detail</p>
+          <div class="flex flex-wrap gap-3 text-[10px] mb-4">
+            <span class="text-emerald-400">● Scheduled</span><span class="text-purple-400">● Unexpected</span><span class="text-sky-400">● Traded</span>
+          </div>
+          <div class="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">${entriesHtml}</div>
+        </div>
+      `);
     }
 
     /*************************************************************************
