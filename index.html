@@ -283,6 +283,8 @@
       activeTab: 'today',
       selectedScheduleDay: getLogicalNow().getDay(),
       schedule: {},
+      scheduleOverrides: {}, // one-time schedules keyed by logical YYYY-MM-DD
+      scheduleMode: 'recurring',
       logs: {}, // keyed by logical YYYY-MM-DD
       startedAt: null
     };
@@ -293,6 +295,7 @@
         if (raw) {
           const parsed = JSON.parse(raw);
           state.schedule = parsed.schedule || createSampleSchedule();
+          state.scheduleOverrides = parsed.scheduleOverrides || {};
           state.logs = parsed.logs || {};
           state.startedAt = parsed.startedAt || Object.keys(state.logs).sort()[0] || null;
         } else {
@@ -312,13 +315,36 @@
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify({
           schedule: state.schedule,
+          scheduleOverrides: state.scheduleOverrides,
           logs: state.logs,
           startedAt: state.startedAt,
-          schemaVersion: 2
+          schemaVersion: 3
         }));
       } catch (e) {
         console.error('Error saving state:', e);
       }
+    }
+
+    function getNextDateForWeekday(dayIdx) {
+      const today = getLogicalNow();
+      const delta = ((dayIdx - today.getDay() + 7) % 7) || 7;
+      const target = new Date(today.getFullYear(), today.getMonth(), today.getDate() + delta);
+      return `${target.getFullYear()}-${String(target.getMonth()+1).padStart(2,'0')}-${String(target.getDate()).padStart(2,'0')}`;
+    }
+
+    function getScheduleTargetDate(dayIdx = state.selectedScheduleDay) {
+      return state.scheduleMode === 'next' ? getNextDateForWeekday(dayIdx) : null;
+    }
+
+    function getScheduleSlotsForDay(dayIdx, dateKey = getScheduleTargetDate(dayIdx)) {
+      if (dateKey && state.scheduleOverrides && Array.isArray(state.scheduleOverrides[dateKey])) return state.scheduleOverrides[dateKey];
+      return state.schedule[dayIdx] || [];
+    }
+
+    function setScheduleSlotsForSelectedDay(slots) {
+      const dateKey = getScheduleTargetDate();
+      if (dateKey) state.scheduleOverrides[dateKey] = slots;
+      else state.schedule[state.selectedScheduleDay] = slots;
     }
 
     /**
@@ -328,7 +354,7 @@
     function ensureTodayLog() {
       const todayKey = getTodayKey();
       const dayOfWeek = getLogicalNow().getDay();
-      const templateSlots = (state.schedule[dayOfWeek] || []).slice().sort((a, b) => (a.time < '04:00' ? 1440 : 0) + timeToMinutes(a.time) - ((b.time < '04:00' ? 1440 : 0) + timeToMinutes(b.time)));
+      const templateSlots = getScheduleSlotsForDay(dayOfWeek, todayKey).slice().sort((a, b) => (a.time < '04:00' ? 1440 : 0) + timeToMinutes(a.time) - ((b.time < '04:00' ? 1440 : 0) + timeToMinutes(b.time)));
 
       if (!state.logs[todayKey]) {
         state.logs[todayKey] = {
@@ -613,8 +639,7 @@
 
           if (isCompleted) {
             cardStyle = 'bg-ios-card/60 border-amber-500/30';
-            const lastTime = slot.events.filter(e => e.type === 'scheduled').pop()?.timestamp || '';
-            badgeHtml = `<span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400">✓ Smoked ${lastTime ? 'at ' + lastTime : ''}</span>`;
+            badgeHtml = renderScheduledSmokeChips(slot, todayKey);
             actionHtml = `
               <button onclick="undoSlotAction('${slot.slotId}')" class="px-3 py-2 rounded-xl bg-ios-elevated border border-ios-border text-zinc-400 text-xs font-medium active:scale-95 transition">
                 Undo
@@ -638,10 +663,9 @@
           } else if (isMixedDone) {
             cardStyle = 'bg-ios-card/60 border-zinc-700';
             const parts = [];
-            if (slot.smokedCount) parts.push(`${slot.smokedCount} Smoked`);
             if (skipped) parts.push(`${skipped} Skipped`);
             if (slot.sacrificedCount) parts.push(`${slot.sacrificedCount} Forfeited`);
-            badgeHtml = `<span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-zinc-700/60 text-zinc-300">${parts.join(' · ')}</span>`;
+            badgeHtml = `${renderScheduledSmokeChips(slot, todayKey)}${parts.length ? `<span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-zinc-700/60 text-zinc-300">${parts.join(' · ')}</span>` : ''}`;
             actionHtml = `
               <button onclick="undoSlotAction('${slot.slotId}')" class="px-3 py-2 rounded-xl bg-ios-elevated border border-ios-border text-zinc-400 text-xs font-medium active:scale-95 transition">
                 Undo
@@ -655,6 +679,7 @@
             } else {
               badgeHtml = `<span class="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400">Upcoming</span>`;
             }
+            if (slot.smokedCount > 0) badgeHtml = `${renderScheduledSmokeChips(slot, todayKey)}${badgeHtml}`;
 
             const countSub = slot.allowance > 1 ? `<span class="text-[11px] text-zinc-400 ml-1">(${remaining}/${slot.allowance} left)</span>` : '';
 
@@ -710,9 +735,9 @@
                         ${isSwap ? '⇄' : '+1'}
                       </div>
                       <div class="min-w-0">
-                        <p class="text-xs font-semibold text-zinc-200 truncate">
-                          ${isSwap ? `Smoked Early (${item.timestamp})` : `Unexpected Event (${item.timestamp})`}
-                        </p>
+                        <button type="button" onclick="openSmokeTimeEditor('${todayKey}', 'extra', '', '${item.id}')" class="text-left text-xs font-semibold ${isSwap ? 'text-sky-300' : 'text-purple-300'} truncate underline decoration-dotted">
+                          ${isSwap ? `Smoked Early (${item.timestamp})` : `Unexpected Event (${item.timestamp})`} · Edit time
+                        </button>
                         <p class="text-[11px] text-zinc-400 truncate">
                           ${isSwap ? `Traded away: ${escapeHtml(item.sacrificedSlotLabel)}${item.fromSkipped ? ' (skipped)' : ''}` : escapeHtml(item.reason || 'Unplanned circumstance')}
                         </p>
@@ -819,6 +844,67 @@
 
         ${extraLogsHtml}
       `;
+    }
+
+    function renderScheduledSmokeChips(slot, dateKey) {
+      const events = (slot.events || []).map((ev, index) => ({ ev, index })).filter(x => x.ev.type === 'scheduled');
+      if (!events.length) return '<span class="text-[11px] text-amber-400">✓ Smoked</span>';
+      return events.map(({ev, index}, n) => {
+        const ts = eventTs(dateKey, ev);
+        const time = ts ? new Date(ts).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', hour12:false}) : (ev.timestamp || '');
+        return `<button type="button" onclick="openSmokeTimeEditor('${dateKey}', 'slot', '${slot.slotId}', '', ${index})" class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20 active:scale-95" title="Edit smoking time">✓ ${time || `Cigarette ${n+1}`} · Edit</button>`;
+      }).join('');
+    }
+
+    function openSmokeTimeEditor(dateKey, source, slotId, extraId, eventIndex) {
+      const log = state.logs[dateKey];
+      if (!log) return;
+      let ev = null;
+      if (source === 'slot') {
+        const slot = (log.slots || []).find(s => s.slotId === slotId);
+        ev = slot && slot.events ? slot.events[eventIndex] : null;
+      } else {
+        ev = (log.extraLogs || []).find(e => e.id === extraId);
+      }
+      if (!ev || (source === 'slot' && ev.type !== 'scheduled') || (source === 'extra' && !['swapped','unexpected'].includes(ev.type))) return;
+      const ts = eventTs(dateKey, ev) || Date.now();
+      const timeValue = new Date(ts).toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit', hour12:false});
+      openModal(`
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-lg font-bold text-white">Edit smoking time</h3>
+            <button onclick="closeModal()" class="w-8 h-8 rounded-full bg-ios-elevated text-zinc-400">✕</button>
+          </div>
+          <p class="text-xs text-zinc-400 mb-4">Change when this cigarette was actually smoked. It will update the average gap and the daily timeline.</p>
+          <label class="block text-xs font-semibold text-zinc-300 mb-1.5">Actual smoking time</label>
+          <input id="edit-smoke-time" type="time" value="${timeValue}" class="w-full px-3.5 py-3 rounded-2xl bg-ios-elevated border border-ios-border text-white text-lg mb-5" />
+          <div class="grid grid-cols-2 gap-2.5">
+            <button onclick="closeModal()" class="py-3 rounded-2xl bg-ios-elevated text-zinc-400 font-semibold text-xs">Cancel</button>
+            <button onclick="saveSmokeTimeEdit('${dateKey}','${source}','${slotId || ''}','${extraId || ''}',${eventIndex === undefined ? -1 : eventIndex})" class="py-3 rounded-2xl bg-amber-500 text-zinc-950 font-bold text-xs">Save time</button>
+          </div>
+        </div>
+      `);
+    }
+
+    function saveSmokeTimeEdit(dateKey, source, slotId, extraId, eventIndex) {
+      const value = document.getElementById('edit-smoke-time')?.value;
+      if (!value || !/^([01]\d|2[0-3]):[0-5]\d$/.test(value)) { showToast('Choose a valid time', '!'); return; }
+      const log = state.logs[dateKey];
+      if (!log) return;
+      let ev = null;
+      if (source === 'slot') {
+        const slot = (log.slots || []).find(s => s.slotId === slotId);
+        ev = slot && slot.events ? slot.events[eventIndex] : null;
+      } else ev = (log.extraLogs || []).find(e => e.id === extraId);
+      if (!ev) return;
+      const [y,m,d] = dateKey.split('-').map(Number);
+      const [hh,mm] = value.split(':').map(Number);
+      const eventDate = new Date(y,m-1,d);
+      if (hh < 4) eventDate.setDate(eventDate.getDate()+1);
+      eventDate.setHours(hh,mm,0,0);
+      ev.timestamp = value;
+      ev.ts = eventDate.getTime();
+      saveState(); closeModal(); render(); showToast('Smoking time updated', '✓');
     }
 
     function markSlotSmoked(slotId) {
@@ -1106,6 +1192,8 @@
     /*************************************************************************
      * 6. SCHEDULE SETUP VIEW & CRUD
      *************************************************************************/
+    function setScheduleMode(mode) { state.scheduleMode = mode === 'next' ? 'next' : 'recurring'; render(); }
+
     function selectScheduleDay(dayIdx) {
       state.selectedScheduleDay = dayIdx;
       render();
@@ -1113,12 +1201,14 @@
 
     function renderScheduleView() {
       const dayIdx = state.selectedScheduleDay;
-      const daySlots = (state.schedule[dayIdx] || []).slice().sort((a, b) => (a.time < '04:00' ? 1440 : 0) + timeToMinutes(a.time) - ((b.time < '04:00' ? 1440 : 0) + timeToMinutes(b.time)));
+      const targetDate = getScheduleTargetDate(dayIdx);
+      const daySlots = getScheduleSlotsForDay(dayIdx, targetDate).slice().sort((a, b) => (a.time < '04:00' ? 1440 : 0) + timeToMinutes(a.time) - ((b.time < '04:00' ? 1440 : 0) + timeToMinutes(b.time)));
       const totalCigs = daySlots.reduce((sum, s) => sum + (s.count || 1), 0);
 
       const dayPills = SHORT_DAYS.map((name, idx) => {
         const isSelected = idx === dayIdx;
-        const count = (state.schedule[idx] || []).reduce((sum, s) => sum + (s.count || 1), 0);
+        const pillDate = state.scheduleMode === 'next' ? getNextDateForWeekday(idx) : null;
+        const count = getScheduleSlotsForDay(idx, pillDate).reduce((sum, s) => sum + (s.count || 1), 0);
         return `
           <button onclick="selectScheduleDay(${idx})"
             class="flex flex-col items-center py-2.5 px-1 rounded-2xl border transition active:scale-95 ${
@@ -1171,6 +1261,12 @@
           ${dayPills}
         </div>
 
+        <div class="grid grid-cols-2 gap-2 mb-4">
+          <button onclick="setScheduleMode('recurring')" class="py-2.5 rounded-xl border text-xs font-bold ${state.scheduleMode === 'recurring' ? 'bg-amber-500 text-zinc-950 border-amber-400' : 'bg-ios-card text-zinc-400 border-ios-border'}">Edit recurring ${DAYS[dayIdx]}</button>
+          <button onclick="setScheduleMode('next')" class="py-2.5 rounded-xl border text-xs font-bold ${state.scheduleMode === 'next' ? 'bg-amber-500 text-zinc-950 border-amber-400' : 'bg-ios-card text-zinc-400 border-ios-border'}">Edit next ${DAYS[dayIdx]}</button>
+        </div>
+        ${targetDate ? `<p class="text-[11px] text-sky-300 mb-3 px-1">One-time schedule for ${formatDisplayDate(targetDate)}. Your recurring weekly schedule will remain unchanged.</p>` : `<p class="text-[11px] text-zinc-500 mb-3 px-1">Changes here update your repeating weekly routine.</p>`}
+
         <!-- Selected Day Header -->
         <div class="flex items-center justify-between mb-3 px-1">
           <div>
@@ -1206,7 +1302,7 @@
 
     function openSlotEditorModal(slotId = null) {
       const dayIdx = state.selectedScheduleDay;
-      const existing = slotId ? (state.schedule[dayIdx] || []).find(s => s.id === slotId) : null;
+      const existing = slotId ? getScheduleSlotsForDay(dayIdx).find(s => s.id === slotId) : null;
 
       const timeVal = existing ? existing.time : '12:00';
       const labelVal = existing ? existing.label : '';
@@ -1288,23 +1384,22 @@
       const count = parseInt(document.getElementById('slot-count-input').value, 10) || 1;
       const dayIdx = state.selectedScheduleDay;
 
-      if (!state.schedule[dayIdx]) state.schedule[dayIdx] = [];
+      const slots = getScheduleSlotsForDay(dayIdx).slice();
 
       if (slotId) {
-        const slot = state.schedule[dayIdx].find(s => s.id === slotId);
+        const slot = slots.find(s => s.id === slotId);
         if (slot) {
           slot.time = time;
           slot.label = label;
           slot.count = count;
         }
       } else {
-        state.schedule[dayIdx].push({ id: uid(), time, label, count });
+        slots.push({ id: uid(), time, label, count });
       }
+      setScheduleSlotsForSelectedDay(slots);
 
       saveState();
-      if (dayIdx === getLogicalNow().getDay()) {
-        ensureTodayLog();
-      }
+      if (state.scheduleMode === 'recurring' && dayIdx === getLogicalNow().getDay()) ensureTodayLog();
       closeModal();
       render();
       showToast(slotId ? 'Slot updated' : 'Slot added');
@@ -1312,11 +1407,9 @@
 
     function deleteScheduleSlot(slotId) {
       const dayIdx = state.selectedScheduleDay;
-      state.schedule[dayIdx] = (state.schedule[dayIdx] || []).filter(s => s.id !== slotId);
+      setScheduleSlotsForSelectedDay(getScheduleSlotsForDay(dayIdx).filter(s => s.id !== slotId));
       saveState();
-      if (dayIdx === getLogicalNow().getDay()) {
-        ensureTodayLog();
-      }
+      if (state.scheduleMode === 'recurring' && dayIdx === getLogicalNow().getDay()) ensureTodayLog();
       render();
       showToast('Slot deleted', '🗑');
     }
@@ -1353,16 +1446,13 @@
 
     function confirmCopyDay() {
       const srcIdx = state.selectedScheduleDay;
-      const srcSlots = state.schedule[srcIdx] || [];
+      const srcSlots = getScheduleSlotsForDay(srcIdx).slice();
       const checked = Array.from(document.querySelectorAll('.copy-day-cb:checked')).map(el => parseInt(el.value, 10));
 
       checked.forEach(targetIdx => {
-        state.schedule[targetIdx] = srcSlots.map(s => ({
-          id: uid(),
-          time: s.time,
-          label: s.label,
-          count: s.count || 1
-        }));
+        const copied = srcSlots.map(s => ({ id: uid(), time: s.time, label: s.label, count: s.count || 1 }));
+        if (state.scheduleMode === 'next') state.scheduleOverrides[getNextDateForWeekday(targetIdx)] = copied;
+        else state.schedule[targetIdx] = copied;
       });
 
       saveState();
@@ -1374,9 +1464,9 @@
 
     function clearCurrentDaySchedule() {
       const dayIdx = state.selectedScheduleDay;
-      state.schedule[dayIdx] = [];
+      setScheduleSlotsForSelectedDay([]);
       saveState();
-      if (dayIdx === getLogicalNow().getDay()) ensureTodayLog();
+      if (state.scheduleMode === 'recurring' && dayIdx === getLogicalNow().getDay()) ensureTodayLog();
       render();
       showToast(`Cleared ${DAYS[dayIdx]}`, '🗑');
     }
@@ -1614,7 +1704,7 @@
             <h3 class="text-lg font-bold text-white">${formatDisplayDate(dateKey)}</h3>
             <button onclick="closeModal()" class="w-8 h-8 rounded-full bg-ios-elevated text-zinc-400 flex items-center justify-center text-sm">✕</button>
           </div>
-          <p class="text-[11px] text-zinc-500 mb-4">Daily detail</p>
+          <p class="text-[11px] text-zinc-500 mb-4">Daily detail · 04:00 – 03:59 next day</p>
           <div class="flex flex-wrap gap-3 text-[10px] mb-4">
             <span class="text-emerald-400">● Scheduled</span><span class="text-purple-400">● Unexpected</span><span class="text-sky-400">● Traded</span>
           </div>
@@ -1655,10 +1745,11 @@
     function exportDataBackup() {
       const backup = {
         app: 'Smoky',
-        schemaVersion: 2,
+        schemaVersion: 3,
         exportedAt: new Date().toISOString(),
         startedAt: state.startedAt || getTodayKey(),
         schedule: state.schedule,
+        scheduleOverrides: state.scheduleOverrides,
         logs: state.logs
       };
       const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
@@ -1693,6 +1784,7 @@
           return;
         }
         state.schedule = parsed.schedule;
+        state.scheduleOverrides = parsed.scheduleOverrides || {};
         state.logs = parsed.logs;
         state.startedAt = parsed.startedAt || Object.keys(parsed.logs).sort()[0] || getTodayKey();
         ensureTodayLog();
