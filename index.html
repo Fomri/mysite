@@ -78,6 +78,23 @@
     .animate-sheet {
       animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     }
+    /* iOS Safari gives native time inputs a large intrinsic minimum width.
+       Constrain them inside the modal so their rounded border never clips. */
+    .modal-time-input {
+      display: block;
+      width: 100% !important;
+      min-width: 0 !important;
+      max-width: 100%;
+      box-sizing: border-box;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    #modal-box {
+      box-sizing: border-box;
+      min-width: 0;
+      overflow-x: hidden;
+      width: 100%;
+    }
   </style>
 </head>
 <body class="min-h-screen antialiased selection:bg-amber-500/30">
@@ -877,7 +894,7 @@
           </div>
           <p class="text-xs text-zinc-400 mb-4">Change when this cigarette was actually smoked. It will update the average gap and the daily timeline.</p>
           <label class="block text-xs font-semibold text-zinc-300 mb-1.5">Actual smoking time</label>
-          <input id="edit-smoke-time" type="time" value="${timeValue}" class="w-full px-3.5 py-3 rounded-2xl bg-ios-elevated border border-ios-border text-white text-lg mb-5" />
+          <input id="edit-smoke-time" type="time" value="${timeValue}" class="modal-time-input w-full min-w-0 max-w-full px-3.5 py-3 rounded-2xl bg-ios-elevated border border-ios-border text-white text-lg mb-5" />
           <div class="grid grid-cols-2 gap-2.5">
             <button onclick="closeModal()" class="py-3 rounded-2xl bg-ios-elevated text-zinc-400 font-semibold text-xs">Cancel</button>
             <button onclick="saveSmokeTimeEdit('${dateKey}','${source}','${slotId || ''}','${extraId || ''}',${eventIndex === undefined ? -1 : eventIndex})" class="py-3 rounded-2xl bg-amber-500 text-zinc-950 font-bold text-xs">Save time</button>
@@ -1319,7 +1336,7 @@
             <div>
               <label class="block text-xs font-semibold text-zinc-300 mb-1.5">Allowed Time</label>
               <input id="slot-time-input" type="time" value="${timeVal}"
-                class="w-full px-3.5 py-3 rounded-2xl bg-ios-elevated border border-ios-border text-white text-base font-bold focus:outline-none focus:border-amber-500" />
+                class="modal-time-input w-full min-w-0 max-w-full px-3.5 py-3 rounded-2xl bg-ios-elevated border border-ios-border text-white text-base font-bold focus:outline-none focus:border-amber-500" />
             </div>
 
             <div>
